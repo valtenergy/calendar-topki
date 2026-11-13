@@ -2,10 +2,13 @@ package com.valtenergy.calendartopki
 
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
@@ -219,6 +222,7 @@ class MainActivity : ComponentActivity() {
         ar.addView(statBlock(allKg.toString() + " кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
         allStats.addView(ar)
         root.addView(allStats)
+        root.addView(monthlyBreakdownCard(selectedDate.year))
 
         root.addView(label("РЕЗЕРВНОЕ КОПИРОВАНИЕ", 11f, muted, true).apply {
             setPadding(dp(2), dp(20), 0, dp(8))
@@ -233,6 +237,71 @@ class MainActivity : ComponentActivity() {
         restore.setOnClickListener { openBackup.launch(arrayOf("application/json", "text/*")) }
         root.addView(label("Оранжевая точка — дата фактической растопки. Котёл может гореть несколько дней.", 12f, muted)
             .apply { setPadding(dp(2), dp(12), 0, 0) })
+    }
+
+    private fun monthlyBreakdownCard(year: Int): LinearLayout {
+        val monthData = (1..12).map { month ->
+            val key = YearMonth.of(year, month).toString()
+            val items = records.filterKeys { it.startsWith(key) }.values
+            Triple(
+                YearMonth.of(year, month).format(DateTimeFormatter.ofPattern("LLLL", Locale("ru"))).replaceFirstChar { it.uppercase() },
+                items.size,
+                items.sumOf { it.buckets * it.bucketKg }
+            )
+        }
+        val maxKg = (monthData.maxOfOrNull { it.third } ?: 0).coerceAtLeast(1)
+        return card().apply {
+            addView(label("РАСХОД ПО МЕСЯЦАМ · $year", 12f, orange, true))
+            addView(label("Сколько угля ушло в каждом месяце", 13f, muted).apply {
+                setPadding(0, dp(3), 0, dp(8))
+            })
+            addView(object : View(this@MainActivity) {
+                private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = orange }
+                private val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = panel2 }
+                private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = muted
+                    textSize = dp(9).toFloat()
+                    textAlign = Paint.Align.CENTER
+                }
+                override fun onDraw(canvas: Canvas) {
+                    super.onDraw(canvas)
+                    val w = width.toFloat()
+                    val h = height.toFloat()
+                    val bottom = h - dp(23)
+                    val top = dp(8).toFloat()
+                    val slot = w / 12f
+                    val barW = slot * 0.56f
+                    monthData.forEachIndexed { index, item ->
+                        val left = slot * index + (slot - barW) / 2f
+                        val barH = (bottom - top) * item.third.toFloat() / maxKg.toFloat()
+                        canvas.drawRoundRect(left, top, left + barW, bottom, dp(4).toFloat(), dp(4).toFloat(), emptyPaint)
+                        if (item.third > 0) {
+                            canvas.drawRoundRect(left, bottom - barH, left + barW, bottom, dp(4).toFloat(), dp(4).toFloat(), barPaint)
+                        }
+                        val shortName = listOf("Я","Ф","М","А","М","И","И","А","С","О","Н","Д")[index]
+                        canvas.drawText(shortName, left + barW / 2f, h - dp(5).toFloat(), textPaint)
+                    }
+                }
+            }.apply { layoutParams = LinearLayout.LayoutParams(-1, dp(142)) })
+            addView(space(6))
+            monthData.forEachIndexed { index, item ->
+                val monthRow = LinearLayout(this@MainActivity).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(7), 0, dp(7))
+                }
+                monthRow.addView(label(item.first, 14f, white, true), LinearLayout.LayoutParams(0, -2, 1f))
+                monthRow.addView(label(item.second.toString() + " топ.", 12f, muted).apply { gravity = Gravity.END },
+                    LinearLayout.LayoutParams(dp(62), -2))
+                monthRow.addView(label(item.third.toString() + " кг", 14f, if (item.third > 0) orange else muted, true).apply {
+                    gravity = Gravity.END
+                }, LinearLayout.LayoutParams(dp(76), -2))
+                addView(monthRow)
+                if (index != 11) addView(View(this@MainActivity).apply {
+                    setBackgroundColor(panel2)
+                    layoutParams = LinearLayout.LayoutParams(-1, dp(1))
+                })
+            }
+        }
     }
 
     private fun counterRow(): LinearLayout {
