@@ -96,7 +96,8 @@ class MainActivity : ComponentActivity() {
         when (page) {
             0 -> calendarPage()
             1 -> statisticsPage()
-            else -> backupPage()
+            2 -> backupPage()
+            else -> entryPage()
         }
     }
 
