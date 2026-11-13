@@ -1,15 +1,13 @@
 package com.valtenergy.calendartopki
 
-import android.app.Activity
-import android.os.Bundle
-import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.GridLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -36,155 +34,284 @@ class MainActivity : ComponentActivity() {
     private lateinit var root: LinearLayout
     private lateinit var morningCheck: CheckBox
     private lateinit var eveningCheck: CheckBox
-    private lateinit var morningBuckets: EditText
-    private lateinit var eveningBuckets: EditText
+    private lateinit var morningCountText: TextView
+    private lateinit var eveningCountText: TextView
+    private var morningCount = 0
+    private var eveningCount = 0
+
+    private val bg = Color.rgb(17, 20, 27)
+    private val panel = Color.rgb(29, 34, 44)
+    private val panel2 = Color.rgb(38, 44, 56)
+    private val orange = Color.rgb(255, 145, 48)
+    private val red = Color.rgb(239, 78, 67)
+    private val white = Color.rgb(245, 246, 249)
+    private val muted = Color.rgb(157, 166, 181)
 
     private val createBackup = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) {
-            try {
-                contentResolver.openOutputStream(uri)?.use { it.write(exportJson().toByteArray(Charsets.UTF_8)) }
-                toast("Резервная копия сохранена")
-            } catch (e: Exception) { toast("Не удалось сохранить копию") }
-        }
+        if (uri != null) try {
+            contentResolver.openOutputStream(uri)?.use { it.write(exportJson().toByteArray(Charsets.UTF_8)) }
+            toast("Резервная копия сохранена")
+        } catch (_: Exception) { toast("Не удалось сохранить копию") }
     }
     private val openBackup = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            try {
-                val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
-                importJson(json)
-                persist()
-                render()
-                toast("Резервная копия восстановлена")
-            } catch (e: Exception) { toast("Не удалось прочитать файл копии") }
-        }
+        if (uri != null) try {
+            val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+            importJson(json)
+            persist()
+            render()
+            toast("Резервная копия восстановлена")
+        } catch (_: Exception) { toast("Не удалось прочитать файл копии") }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = bg
+        window.navigationBarColor = bg
+        window.decorView.systemUiVisibility = 0
         loadSaved()
         render()
     }
 
     private fun render() {
-        val scroll = ScrollView(this)
+        val scroll = ScrollView(this).apply { setBackgroundColor(bg); clipToPadding = false }
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(24))
-            setBackgroundColor(Color.rgb(247, 248, 250))
+            setPadding(dp(18), dp(18), dp(18), dp(28))
+            setBackgroundColor(bg)
         }
         scroll.addView(root)
         setContentView(scroll)
 
-        root.addView(TextView(this).apply {
-            text = "Календарь топки"
-            textSize = 26f
-            setTextColor(Color.rgb(28, 43, 62))
-            gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, dp(16))
+        root.addView(label("ДОМ  •  ОТОПЛЕНИЕ", 11f, orange, true).apply {
+            letterSpacing = 0.12f
+            setPadding(dp(2), dp(4), 0, dp(5))
+        })
+        root.addView(label("Календарь топки", 28f, white, true))
+        root.addView(label("Учёт утренней и вечерней топки", 14f, muted).apply {
+            setPadding(0, dp(3), 0, dp(18))
         })
 
-        val monthRow = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL }
-        val prev = Button(this).apply { text = "‹"; textSize = 22f }
-        val monthTitle = TextView(this).apply {
-            text = selectedDate.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru"))).replaceFirstChar { it.uppercase() }
-            textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.DKGRAY)
-        }
-        val next = Button(this).apply { text = "›"; textSize = 22f }
-        monthRow.addView(prev, LinearLayout.LayoutParams(dp(56), dp(48)))
-        monthRow.addView(monthTitle, LinearLayout.LayoutParams(0, dp(48), 1f))
-        monthRow.addView(next, LinearLayout.LayoutParams(dp(56), dp(48)))
-        root.addView(monthRow)
-        prev.setOnClickListener { saveCurrent(); selectedDate = selectedDate.minusMonths(1); render() }
-        next.setOnClickListener { saveCurrent(); selectedDate = selectedDate.plusMonths(1); render() }
-
-        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(12)) }
-        val weekNames = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+        val monthCard = card()
+        val monthRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val prev = smallButton("‹")
+        val monthTitle = label(
+            selectedDate.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru"))).replaceFirstChar { it.uppercase() },
+            18f, white, true
+        ).apply { gravity = Gravity.CENTER }
+        val next = smallButton("›")
+        monthRow.addView(prev, LinearLayout.LayoutParams(dp(46), dp(44)))
+        monthRow.addView(monthTitle, LinearLayout.LayoutParams(0, dp(44), 1f))
+        monthRow.addView(next, LinearLayout.LayoutParams(dp(46), dp(44)))
+        monthCard.addView(monthRow)
+        monthCard.addView(space(8))
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val weekNames = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС")
         val header = LinearLayout(this)
-        weekNames.forEach { name -> header.addView(TextView(this).apply {
-            text = name; gravity = Gravity.CENTER; textSize = 13f; setTextColor(Color.GRAY)
-        }, LinearLayout.LayoutParams(0, dp(32), 1f)) }
+        weekNames.forEach { name ->
+            header.addView(label(name, 10f, muted, true).apply { gravity = Gravity.CENTER },
+                LinearLayout.LayoutParams(0, dp(30), 1f))
+        }
         grid.addView(header)
         val ym = YearMonth.from(selectedDate)
-        val firstOffset = ym.atDay(1).dayOfWeek.value - 1
-        val cells = ((firstOffset + ym.lengthOfMonth() + 6) / 7) * 7
+        val offset = ym.atDay(1).dayOfWeek.value - 1
+        val cells = ((offset + ym.lengthOfMonth() + 6) / 7) * 7
         for (week in 0 until cells / 7) {
             val row = LinearLayout(this)
             for (col in 0..6) {
-                val index = week * 7 + col
-                val dayNum = index - firstOffset + 1
+                val dayNum = week * 7 + col - offset + 1
                 val cell = if (dayNum in 1..ym.lengthOfMonth()) {
                     val date = ym.atDay(dayNum)
                     val rec = records[date.toString()]
-                    val mark = when {
-                        rec == null -> ""
-                        rec.morning && rec.evening -> "●●"
-                        rec.morning || rec.evening -> "●"
-                        else -> ""
-                    }
-                    TextView(this).apply {
-                        text = "$dayNum\n$mark"
+                    val marked = rec != null && (rec.morning || rec.evening || rec.morningBuckets > 0 || rec.eveningBuckets > 0)
+                    val selected = date == selectedDate
+                    val dayView = TextView(this).apply {
+                        text = dayNum.toString() + if (marked) "\n●" else ""
                         gravity = Gravity.CENTER
-                        textSize = 15f
-                        setTextColor(if (date == selectedDate) Color.WHITE else Color.rgb(40, 52, 67))
-                        setBackgroundColor(if (date == selectedDate) Color.rgb(39, 103, 166) else Color.WHITE)
-                        setPadding(0, dp(5), 0, dp(5))
+                        textSize = if (marked) 14f else 15f
+                        setTypeface(null, if (selected) Typeface.BOLD else Typeface.NORMAL)
+                        setTextColor(if (selected) bg else if (marked) orange else white)
+                        background = shape(if (selected) orange else Color.TRANSPARENT, 12)
+                        setPadding(0, dp(4), 0, dp(4))
                         setOnClickListener { saveCurrent(); selectedDate = date; render() }
                     }
+                    dayView
                 } else TextView(this)
-                val lp = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                row.addView(cell, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                     setMargins(dp(2), dp(2), dp(2), dp(2))
-                }
-                row.addView(cell, lp)
+                })
             }
             grid.addView(row)
         }
-        root.addView(grid)
-
-        root.addView(TextView(this).apply {
-            text = "Запись за " + selectedDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru")))
-            textSize = 18f; setTextColor(Color.rgb(28, 43, 62)); setPadding(0, dp(8), 0, dp(8))
-        })
+        monthCard.addView(grid)
+        root.addView(monthCard)
+        prev.setOnClickListener { saveCurrent(); selectedDate = selectedDate.minusMonths(1); render() }
+        next.setOnClickListener { saveCurrent(); selectedDate = selectedDate.plusMonths(1); render() }
 
         val rec = records[selectedDate.toString()] ?: BurnDay()
-        morningCheck = CheckBox(this).apply { text = "Топил утром"; isChecked = rec.morning; textSize = 16f }
-        morningBuckets = EditText(this).apply {
-            hint = "Вёдер угля утром"; inputType = 2; setText(if (rec.morningBuckets > 0) rec.morningBuckets.toString() else "")
-        }
-        eveningCheck = CheckBox(this).apply { text = "Топил вечером"; isChecked = rec.evening; textSize = 16f }
-        eveningBuckets = EditText(this).apply {
-            hint = "Вёдер угля вечером"; inputType = 2; setText(if (rec.eveningBuckets > 0) rec.eveningBuckets.toString() else "")
-        }
-        root.addView(morningCheck)
-        root.addView(morningBuckets, LinearLayout.LayoutParams(-1, dp(52)))
-        root.addView(eveningCheck)
-        root.addView(eveningBuckets, LinearLayout.LayoutParams(-1, dp(52)))
+        morningCount = rec.morningBuckets
+        eveningCount = rec.eveningBuckets
+        val dateTitle = selectedDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru")))
+            .replaceFirstChar { it.uppercase() }
+        root.addView(label("ЗАПИСЬ ЗА ДЕНЬ", 11f, orange, true).apply {
+            setPadding(dp(2), dp(20), 0, dp(5))
+        })
+        root.addView(label(dateTitle, 21f, white, true).apply { setPadding(0, 0, 0, dp(12)) })
 
-        val save = Button(this).apply { text = "Сохранить запись" }
-        root.addView(save, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(8) })
+        val morningCard = card()
+        morningCard.addView(sectionHeader("☀", "Утро", orange))
+        morningCheck = check("Топил утром", rec.morning, orange)
+        morningCard.addView(morningCheck)
+        morningCard.addView(counterRow("Вёдер угля", true))
+        root.addView(morningCard)
+
+        val eveningCard = card()
+        eveningCard.addView(sectionHeader("◐", "Вечер", red))
+        eveningCheck = check("Топил вечером", rec.evening, red)
+        eveningCard.addView(eveningCheck)
+        eveningCard.addView(counterRow("Вёдер угля", false))
+        root.addView(eveningCard)
+
+        val save = actionButton("СОХРАНИТЬ ЗАПИСЬ", orange, bg)
+        root.addView(save, LinearLayout.LayoutParams(-1, dp(54)).apply { topMargin = dp(14) })
         save.setOnClickListener { saveCurrent(); toast("Запись сохранена") }
 
-        val backupRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val export = Button(this).apply { text = "Сделать копию"; textSize = 13f }
-        val restore = Button(this).apply { text = "Восстановить"; textSize = 13f }
-        backupRow.addView(export, LinearLayout.LayoutParams(0, dp(52), 1f).apply { setMargins(0, dp(8), dp(4), 0) })
-        backupRow.addView(restore, LinearLayout.LayoutParams(0, dp(52), 1f).apply { setMargins(dp(4), dp(8), 0, 0) })
+        val monthRecords = records.values
+        val activeDays = records.filterKeys { it.startsWith(ym.toString()) }.values
+        val totalFires = activeDays.sumOf { (if (it.morning) 1 else 0) + (if (it.evening) 1 else 0) }
+        val totalBuckets = activeDays.sumOf { it.morningBuckets + it.eveningBuckets }
+        val stats = card()
+        stats.addView(label("ИТОГО ЗА МЕСЯЦ", 11f, muted, true))
+        val statRow = LinearLayout(this).apply { setPadding(0, dp(12), 0, 0) }
+        statRow.addView(statBlock(totalFires.toString(), "топок", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        statRow.addView(statBlock(totalBuckets.toString(), "вёдер угля", red), LinearLayout.LayoutParams(0, -2, 1f))
+        stats.addView(statRow)
+        root.addView(stats)
+
+        root.addView(label("РЕЗЕРВНОЕ КОПИРОВАНИЕ", 11f, muted, true).apply {
+            setPadding(dp(2), dp(20), 0, dp(8))
+        })
+        val backupRow = LinearLayout(this)
+        val export = actionButton("СОЗДАТЬ КОПИЮ", panel2, white)
+        val restore = actionButton("ВОССТАНОВИТЬ", panel2, white)
+        backupRow.addView(export, LinearLayout.LayoutParams(0, dp(50), 1f).apply { marginEnd = dp(5) })
+        backupRow.addView(restore, LinearLayout.LayoutParams(0, dp(50), 1f).apply { marginStart = dp(5) })
         root.addView(backupRow)
         export.setOnClickListener { saveCurrent(); createBackup.launch("kalendar-topki-backup.json") }
         restore.setOnClickListener { openBackup.launch(arrayOf("application/json", "text/*")) }
-
-        root.addView(TextView(this).apply {
-            text = "Отметки в календаре: одна точка — одна топка, две точки — утро и вечер."
-            textSize = 12f; setTextColor(Color.GRAY); setPadding(0, dp(12), 0, 0)
-        })
+        root.addView(label("Оранжевая точка в календаре — в этот день была топка.", 12f, muted)
+            .apply { setPadding(dp(2), dp(12), 0, 0) })
     }
+
+    private fun counterRow(caption: String, morning: Boolean): LinearLayout {
+        val row = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        row.addView(label(caption, 14f, muted), LinearLayout.LayoutParams(0, dp(44), 1f))
+        val value = label((if (morning) morningCount else eveningCount).toString(), 20f, white, true)
+            .apply { gravity = Gravity.CENTER }
+        if (morning) morningCountText = value else eveningCountText = value
+        val minus = smallButton("−")
+        val plus = smallButton("+")
+        minus.setOnClickListener { changeCount(morning, -1) }
+        plus.setOnClickListener { changeCount(morning, 1) }
+        row.addView(minus, LinearLayout.LayoutParams(dp(42), dp(40)).apply { marginEnd = dp(8) })
+        row.addView(value, LinearLayout.LayoutParams(dp(34), dp(40)))
+        row.addView(plus, LinearLayout.LayoutParams(dp(42), dp(40)).apply { marginStart = dp(8) })
+        return row
+    }
+
+    private fun changeCount(morning: Boolean, delta: Int) {
+        if (morning) {
+            morningCount = (morningCount + delta).coerceAtLeast(0)
+            morningCountText.text = morningCount.toString()
+        } else {
+            eveningCount = (eveningCount + delta).coerceAtLeast(0)
+            eveningCountText.text = eveningCount.toString()
+        }
+    }
+
+    private fun sectionHeader(symbol: String, title: String, accent: Int): LinearLayout {
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, dp(8)) }
+        row.addView(label(symbol, 23f, accent, true), LinearLayout.LayoutParams(dp(38), dp(34)))
+        row.addView(label(title, 18f, white, true))
+        return row
+    }
+
+    private fun check(textValue: String, checked: Boolean, tint: Int) = CheckBox(this).apply {
+        text = textValue
+        isChecked = checked
+        textSize = 15f
+        setTextColor(white)
+        buttonTintList = ColorStateList.valueOf(tint)
+        setPadding(0, dp(2), 0, dp(2))
+    }
+
+    private fun statBlock(value: String, caption: String, accent: Int): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(label(value, 25f, accent, true))
+            addView(label(caption, 12f, muted))
+        }
+
+    private fun card(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(14), dp(13), dp(14), dp(13))
+        background = shape(panel, 18)
+        elevation = dp(2).toFloat()
+        val lp = LinearLayout.LayoutParams(-1, -2)
+        lp.bottomMargin = dp(10)
+        layoutParams = lp
+    }
+
+    private fun label(value: String, size: Float, color: Int, bold: Boolean = false) =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            if (bold) setTypeface(null, Typeface.BOLD)
+        }
+
+    private fun smallButton(value: String) = Button(this).apply {
+        text = value
+        textSize = 22f
+        setTextColor(white)
+        background = shape(panel2, 12)
+        isAllCaps = false
+        stateListAnimator = null
+        minHeight = 0
+        minimumHeight = 0
+        minWidth = 0
+        minimumWidth = 0
+        setPadding(0, 0, 0, 0)
+    }
+
+    private fun actionButton(value: String, color: Int, textColor: Int) = Button(this).apply {
+        text = value
+        textSize = 12f
+        setTypeface(null, Typeface.BOLD)
+        setTextColor(textColor)
+        background = shape(color, 14)
+        isAllCaps = false
+        stateListAnimator = null
+        minHeight = 0
+        minimumHeight = 0
+        setPadding(dp(8), 0, dp(8), 0)
+    }
+
+    private fun shape(color: Int, radius: Int) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius).toFloat()
+    }
+
+    private fun space(height: Int) = TextView(this).apply { this.height = dp(height) }
 
     private fun saveCurrent() {
         if (!::morningCheck.isInitialized) return
         val key = selectedDate.toString()
-        val m = morningBuckets.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val e = eveningBuckets.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val value = BurnDay(morningCheck.isChecked, m, eveningCheck.isChecked, e)
-        if (value.morning || value.evening || m > 0 || e > 0) records[key] = value else records.remove(key)
+        val value = BurnDay(morningCheck.isChecked, morningCount, eveningCheck.isChecked, eveningCount)
+        if (value.morning || value.evening || value.morningBuckets > 0 || value.eveningBuckets > 0) records[key] = value
+        else records.remove(key)
         persist()
     }
 
