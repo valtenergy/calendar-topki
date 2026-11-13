@@ -240,61 +240,125 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun monthlyBreakdownCard(year: Int): LinearLayout {
+        data class MonthStat(val name: String, val short: String, val fires: Int, val kg: Int)
         val monthData = (1..12).map { month ->
-            val key = YearMonth.of(year, month).toString()
-            val items = records.filterKeys { it.startsWith(key) }.values
-            Triple(
-                YearMonth.of(year, month).format(DateTimeFormatter.ofPattern("LLLL", Locale("ru"))).replaceFirstChar { it.uppercase() },
+            val ym = YearMonth.of(year, month)
+            val items = records.filterKeys { it.startsWith(ym.toString()) }.values
+            MonthStat(
+                ym.format(DateTimeFormatter.ofPattern("LLLL", Locale("ru"))).replaceFirstChar { it.uppercase() },
+                listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")[month - 1],
                 items.size,
                 items.sumOf { it.buckets * it.bucketKg }
             )
         }
-        val maxKg = (monthData.maxOfOrNull { it.third } ?: 0).coerceAtLeast(1)
+        val totalKg = monthData.sumOf { it.kg }
+        val totalFires = monthData.sumOf { it.fires }
+        val maxKg = (monthData.maxOfOrNull { it.kg } ?: 0).coerceAtLeast(1)
+        val peak = monthData.maxByOrNull { it.kg }
         return card().apply {
-            addView(label("РАСХОД ПО МЕСЯЦАМ · $year", 12f, orange, true))
-            addView(label("Сколько угля ушло в каждом месяце", 13f, muted).apply {
-                setPadding(0, dp(3), 0, dp(8))
+            addView(label("СТАТИСТИКА РАСХОДА", 12f, orange, true))
+            addView(label("Уголь по месяцам · $year", 19f, white, true).apply {
+                setPadding(0, dp(3), 0, dp(14))
+            })
+            val summary = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                background = shape(panel2, 14)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+            }
+            val totalBlock = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+            totalBlock.addView(label("ВСЕГО ЗА ГОД", 10f, muted, true))
+            totalBlock.addView(label("$totalKg кг", 28f, orange, true).apply {
+                setPadding(0, dp(2), 0, 0)
+            })
+            summary.addView(totalBlock, LinearLayout.LayoutParams(0, -2, 1f))
+            val peakBlock = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.END
+            }
+            peakBlock.addView(label("БОЛЬШЕ ВСЕГО", 10f, muted, true).apply { gravity = Gravity.END })
+            peakBlock.addView(label(
+                if (peak != null && peak.kg > 0) "\${peak.name} · \${peak.kg} кг" else "Пока нет записей",
+                13f, white, true
+            ).apply { gravity = Gravity.END; setPadding(0, dp(4), 0, 0) })
+            summary.addView(peakBlock)
+            addView(summary)
+            addView(label("$totalFires растопок за год", 12f, muted).apply {
+                setPadding(dp(2), dp(12), 0, dp(2))
             })
             addView(object : View(this@MainActivity) {
-                private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = orange }
+                private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = panel2
+                    strokeWidth = dp(1).toFloat()
+                }
                 private val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = panel2 }
                 private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = muted
-                    textSize = dp(9).toFloat()
+                    textSize = dp(10).toFloat()
                     textAlign = Paint.Align.CENTER
+                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                }
+                private val selectedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = orange
+                    style = Paint.Style.STROKE
+                    strokeWidth = dp(1.5f).toFloat()
                 }
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
                     val w = width.toFloat()
                     val h = height.toFloat()
-                    val bottom = h - dp(23)
-                    val top = dp(8).toFloat()
-                    val slot = w / 12f
-                    val barW = slot * 0.56f
+                    val left = dp(8).toFloat()
+                    val right = w - dp(8)
+                    val top = dp(16).toFloat()
+                    val bottom = h - dp(30)
+                    val chartHeight = bottom - top
+                    val slot = (right - left) / 12f
+                    val barW = slot * 0.58f
+                    for (line in 0..4) {
+                        val y = top + chartHeight * line / 4f
+                        canvas.drawLine(left, y, right, y, gridPaint)
+                    }
                     monthData.forEachIndexed { index, item ->
-                        val left = slot * index + (slot - barW) / 2f
-                        val barH = (bottom - top) * item.third.toFloat() / maxKg.toFloat()
-                        canvas.drawRoundRect(left, top, left + barW, bottom, dp(4).toFloat(), dp(4).toFloat(), emptyPaint)
-                        if (item.third > 0) {
-                            canvas.drawRoundRect(left, bottom - barH, left + barW, bottom, dp(4).toFloat(), dp(4).toFloat(), barPaint)
+                        val centerX = left + slot * index + slot / 2f
+                        val barLeft = centerX - barW / 2f
+                        val barTop = bottom - chartHeight * item.kg.toFloat() / maxKg.toFloat()
+                        canvas.drawRoundRect(barLeft, top, barLeft + barW, bottom,
+                            dp(5).toFloat(), dp(5).toFloat(), emptyPaint)
+                        if (item.kg > 0) {
+                            val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                shader = android.graphics.LinearGradient(
+                                    0f, barTop, 0f, bottom,
+                                    intArrayOf(orange, red), null,
+                                    android.graphics.Shader.TileMode.CLAMP
+                                )
+                            }
+                            canvas.drawRoundRect(barLeft, barTop, barLeft + barW, bottom,
+                                dp(5).toFloat(), dp(5).toFloat(), barPaint)
                         }
-                        val shortName = listOf("Я","Ф","М","А","М","И","И","А","С","О","Н","Д")[index]
-                        canvas.drawText(shortName, left + barW / 2f, h - dp(5).toFloat(), textPaint)
+                        if (index + 1 == selectedDate.monthValue) {
+                            canvas.drawRoundRect(centerX - slot * 0.47f, top - dp(5),
+                                centerX + slot * 0.47f, bottom + dp(23),
+                                dp(7).toFloat(), dp(7).toFloat(), selectedPaint)
+                        }
+                        canvas.drawText(item.short, centerX, h - dp(7).toFloat(), textPaint)
                     }
                 }
-            }.apply { layoutParams = LinearLayout.LayoutParams(-1, dp(142)) })
-            addView(space(6))
+            }.apply { layoutParams = LinearLayout.LayoutParams(-1, dp(184)) })
+            addView(space(8))
             monthData.forEachIndexed { index, item ->
                 val monthRow = LinearLayout(this@MainActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dp(7), 0, dp(7))
+                    setPadding(dp(2), dp(9), dp(2), dp(9))
                 }
-                monthRow.addView(label(item.first, 14f, white, true), LinearLayout.LayoutParams(0, -2, 1f))
-                monthRow.addView(label(item.second.toString() + " топ.", 12f, muted).apply { gravity = Gravity.END },
-                    LinearLayout.LayoutParams(dp(62), -2))
-                monthRow.addView(label(item.third.toString() + " кг", 14f, if (item.third > 0) orange else muted, true).apply {
+                monthRow.addView(label(item.name, 14f, white, true),
+                    LinearLayout.LayoutParams(0, -2, 1f))
+                monthRow.addView(label("\${item.fires} раст.", 11f, muted).apply {
                     gravity = Gravity.END
-                }, LinearLayout.LayoutParams(dp(76), -2))
+                }, LinearLayout.LayoutParams(dp(66), -2))
+                monthRow.addView(label("\${item.kg} кг", 14f,
+                    if (item.kg > 0) orange else muted, true).apply {
+                    gravity = Gravity.END
+                }, LinearLayout.LayoutParams(dp(72), -2))
                 addView(monthRow)
                 if (index != 11) addView(View(this@MainActivity).apply {
                     setBackgroundColor(panel2)
