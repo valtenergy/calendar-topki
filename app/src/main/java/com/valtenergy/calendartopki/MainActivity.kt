@@ -21,31 +21,21 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-data class BurnDay(
-    var morning: Boolean = false,
-    var morningBuckets: Int = 0,
-    var evening: Boolean = false,
-    var eveningBuckets: Int = 0,
-    var morningKg: Int = 20,
-    var eveningKg: Int = 20
-)
+data class BurnDay(var period: String = "morning", var buckets: Int = 0, var bucketKg: Int = 20)
 
 class MainActivity : ComponentActivity() {
     private val records = mutableMapOf<String, BurnDay>()
     private var selectedDate = LocalDate.now()
     private lateinit var root: LinearLayout
-    private lateinit var morningCheck: CheckBox
-    private lateinit var eveningCheck: CheckBox
-    private lateinit var morningCountText: TextView
-    private lateinit var eveningCountText: TextView
-    private var morningCount = 0
-    private var eveningCount = 0
-    private var morningKg = 20
-    private var eveningKg = 20
-    private lateinit var morningWeight10: Button
-    private lateinit var morningWeight20: Button
-    private lateinit var eveningWeight10: Button
-    private lateinit var eveningWeight20: Button
+    private lateinit var burnCheck: CheckBox
+    private lateinit var countText: TextView
+    private lateinit var morningButton: Button
+    private lateinit var eveningButton: Button
+    private lateinit var weight10Button: Button
+    private lateinit var weight20Button: Button
+    private var burnCount = 0
+    private var bucketKg = 20
+    private var period = "morning"
 
     private val bg = Color.rgb(17, 20, 27)
     private val panel = Color.rgb(29, 34, 44)
@@ -95,7 +85,7 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(2), dp(4), 0, dp(5))
         })
         root.addView(label("Календарь топки", 28f, white, true))
-        root.addView(label("Учёт утренней и вечерней топки", 14f, muted).apply {
+        root.addView(label("Записывай только фактическую растопку", 14f, muted).apply {
             setPadding(0, dp(3), 0, dp(18))
         })
 
@@ -130,7 +120,7 @@ class MainActivity : ComponentActivity() {
                 val cell = if (dayNum in 1..ym.lengthOfMonth()) {
                     val date = ym.atDay(dayNum)
                     val rec = records[date.toString()]
-                    val marked = rec != null && (rec.morning || rec.evening || rec.morningBuckets > 0 || rec.eveningBuckets > 0)
+                    val marked = rec != null && rec.buckets > 0
                     val selected = date == selectedDate
                     val dayView = TextView(this).apply {
                         text = dayNum.toString() + if (marked) "\n●" else ""
@@ -155,77 +145,78 @@ class MainActivity : ComponentActivity() {
         prev.setOnClickListener { saveCurrent(); selectedDate = selectedDate.minusMonths(1); render() }
         next.setOnClickListener { saveCurrent(); selectedDate = selectedDate.plusMonths(1); render() }
 
-        val rec = records[selectedDate.toString()] ?: BurnDay()
-        morningCount = rec.morningBuckets
-        eveningCount = rec.eveningBuckets
-        morningKg = rec.morningKg
-        eveningKg = rec.eveningKg
-        val dateTitle = selectedDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru")))
-            .replaceFirstChar { it.uppercase() }
-        root.addView(label("ЗАПИСЬ ЗА ДЕНЬ", 11f, orange, true).apply {
-            setPadding(dp(2), dp(20), 0, dp(5))
-        })
+        val rec = records[selectedDate.toString()]
+        burnCount = rec?.buckets ?: 0
+        bucketKg = rec?.bucketKg ?: 20
+        period = rec?.period ?: "morning"
+        val dateTitle = selectedDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru"))).replaceFirstChar { it.uppercase() }
+        root.addView(label("ФАКТИЧЕСКАЯ РАСТОПКА", 11f, orange, true).apply { setPadding(dp(2), dp(20), 0, dp(5)) })
         root.addView(label(dateTitle, 21f, white, true).apply { setPadding(0, 0, 0, dp(12)) })
-
-        val morningCard = card()
-        morningCard.addView(sectionHeader("☀", "Утро", orange))
-        morningCheck = check("Топил утром", rec.morning, orange)
-        morningCard.addView(morningCheck)
-        morningCard.addView(weightRow(true))
-        morningCard.addView(counterRow("Количество вёдер", true))
-        root.addView(morningCard)
-
-        val eveningCard = card()
-        eveningCard.addView(sectionHeader("◐", "Вечер", red))
-        eveningCheck = check("Топил вечером", rec.evening, red)
-        eveningCard.addView(eveningCheck)
-        eveningCard.addView(weightRow(false))
-        eveningCard.addView(counterRow("Количество вёдер", false))
-        root.addView(eveningCard)
-        updateWeightButtons()
+        val burnCard = card()
+        burnCheck = check("В этот день растапливал котёл", rec != null, orange)
+        burnCard.addView(burnCheck)
+        burnCard.addView(label("Когда растапливал?", 14f, muted, true).apply { setPadding(0, dp(12), 0, dp(6)) })
+        val periodRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        morningButton = smallButton("☀ Утром").apply { textSize = 15f }
+        eveningButton = smallButton("◐ Вечером").apply { textSize = 15f }
+        periodRow.addView(morningButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(5) })
+        periodRow.addView(eveningButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(5) })
+        burnCard.addView(periodRow)
+        morningButton.setOnClickListener { period = "morning"; updateEditorButtons() }
+        eveningButton.setOnClickListener { period = "evening"; updateEditorButtons() }
+        burnCard.addView(label("Вес одного ведра", 14f, muted, true).apply { setPadding(0, dp(14), 0, dp(6)) })
+        val weightRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        weight10Button = smallButton("10 кг")
+        weight20Button = smallButton("20 кг")
+        weightRow.addView(weight10Button, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) })
+        weightRow.addView(weight20Button, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(5) })
+        burnCard.addView(weightRow)
+        weight10Button.setOnClickListener { bucketKg = 10; updateEditorButtons() }
+        weight20Button.setOnClickListener { bucketKg = 20; updateEditorButtons() }
+        burnCard.addView(counterRow())
+        root.addView(burnCard)
+        updateEditorButtons()
         root.addView(card().apply {
-            addView(label("РАСХОД ЗА ВЫБРАННЫЙ ДЕНЬ", 11f, muted, true))
-            addView(label("${morningCount * morningKg + eveningCount * eveningKg} кг", 25f, orange, true))
+            addView(label("РАСХОД ЗА ЭТУ РАСТОПКУ", 11f, muted, true))
+            addView(label((burnCount * bucketKg).toString() + " кг", 25f, orange, true))
         })
-
         val save = actionButton("СОХРАНИТЬ ЗАПИСЬ", orange, bg)
-        root.addView(save, LinearLayout.LayoutParams(-1, dp(54)).apply { topMargin = dp(14) })
-        save.setOnClickListener { saveCurrent(); toast("Запись сохранена") }
+        root.addView(save, LinearLayout.LayoutParams(-1, dp(54)).apply { topMargin = dp(4) })
+        save.setOnClickListener { saveCurrent(); render(); toast("Запись сохранена") }
 
-        val monthRecords = records.values
-        val activeDays = records.filterKeys { it.startsWith(ym.toString()) }.values
-        val totalFires = activeDays.sumOf { (if (it.morning) 1 else 0) + (if (it.evening) 1 else 0) }
-        val totalBuckets = activeDays.sumOf { it.morningBuckets + it.eveningBuckets }
-        val totalKg = activeDays.sumOf { it.morningBuckets * it.morningKg + it.eveningBuckets * it.eveningKg }
-        val allKg = records.values.sumOf { it.morningBuckets * it.morningKg + it.eveningBuckets * it.eveningKg }
-        val allBuckets = records.values.sumOf { it.morningBuckets + it.eveningBuckets }
-        val allFires = records.values.sumOf { (if (it.morning) 1 else 0) + (if (it.evening) 1 else 0) }
-        val yearDays = records.filterKeys { it.startsWith(selectedDate.year.toString()) }.values
-        val yearFires = yearDays.sumOf { (if (it.morning) 1 else 0) + (if (it.evening) 1 else 0) }
-        val yearBuckets = yearDays.sumOf { it.morningBuckets + it.eveningBuckets }
-        val yearKg = yearDays.sumOf { it.morningBuckets * it.morningKg + it.eveningBuckets * it.eveningKg }
+        val monthRecords = records.filterKeys { it.startsWith(ym.toString()) }.values
+        val yearRecords = records.filterKeys { it.startsWith(selectedDate.year.toString()) }.values
+        val totalFires = monthRecords.size
+        val totalBuckets = monthRecords.sumOf { it.buckets }
+        val totalKg = monthRecords.sumOf { it.buckets * it.bucketKg }
+        val yearFires = yearRecords.size
+        val yearBuckets = yearRecords.sumOf { it.buckets }
+        val yearKg = yearRecords.sumOf { it.buckets * it.bucketKg }
+        val allFires = records.size
+        val allBuckets = records.values.sumOf { it.buckets }
+        val allKg = records.values.sumOf { it.buckets * it.bucketKg }
         val stats = card()
         stats.addView(label("ИТОГО ЗА МЕСЯЦ", 11f, muted, true))
         val statRow = LinearLayout(this).apply { setPadding(0, dp(12), 0, 0) }
-        statRow.addView(statBlock(totalFires.toString(), "топок", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        statRow.addView(statBlock(totalFires.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
         statRow.addView(statBlock(totalBuckets.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-        statRow.addView(statBlock("$totalKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        statRow.addView(statBlock("$" + "totalKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
         stats.addView(statRow)
         root.addView(stats)
         val yearStats = card()
-        yearStats.addView(label("ИТОГО ЗА ${selectedDate.year} ГОД", 11f, muted, true))
+        yearStats.addView(label("ИТОГО ЗА " + selectedDate.year + " ГОД", 11f, muted, true))
         val yr = LinearLayout(this).apply { setPadding(0, dp(10), 0, 0) }
-        yr.addView(statBlock(yearFires.toString(), "топок", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        yr.addView(statBlock(yearFires.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
         yr.addView(statBlock(yearBuckets.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-        yr.addView(statBlock("$yearKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        yr.addView(statBlock("$" + "yearKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
         yearStats.addView(yr)
         root.addView(yearStats)
         val allStats = card()
         allStats.addView(label("ЗА ВСЁ ВРЕМЯ", 11f, muted, true))
         val ar = LinearLayout(this).apply { setPadding(0, dp(10), 0, 0) }
-        ar.addView(statBlock(allFires.toString(), "топок", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        ar.addView(statBlock(allFires.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
         ar.addView(statBlock(allBuckets.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-        ar.addView(statBlock("$allKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        ar.addView(statBlock("$" + "allKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
         allStats.addView(ar)
         root.addView(allStats)
 
@@ -240,60 +231,34 @@ class MainActivity : ComponentActivity() {
         root.addView(backupRow)
         export.setOnClickListener { saveCurrent(); createBackup.launch("kalendar-topki-backup.json") }
         restore.setOnClickListener { openBackup.launch(arrayOf("application/json", "text/*")) }
-        root.addView(label("Оранжевая точка в календаре — в этот день была топка.", 12f, muted)
+        root.addView(label("Оранжевая точка — дата фактической растопки. Котёл может гореть несколько дней.", 12f, muted)
             .apply { setPadding(dp(2), dp(12), 0, 0) })
     }
 
-    private fun counterRow(caption: String, morning: Boolean): LinearLayout {
-        val row = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(8), 0, 0)
-        }
-        row.addView(label(caption, 14f, muted), LinearLayout.LayoutParams(0, dp(44), 1f))
-        val value = label((if (morning) morningCount else eveningCount).toString(), 20f, white, true)
-            .apply { gravity = Gravity.CENTER }
-        if (morning) morningCountText = value else eveningCountText = value
+    private fun counterRow(): LinearLayout {
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(12), 0, 0) }
+        row.addView(label("Количество вёдер", 14f, muted), LinearLayout.LayoutParams(0, dp(44), 1f))
+        countText = label(burnCount.toString(), 20f, white, true).apply { gravity = Gravity.CENTER }
         val minus = smallButton("−")
         val plus = smallButton("+")
-        minus.setOnClickListener { changeCount(morning, -1) }
-        plus.setOnClickListener { changeCount(morning, 1) }
+        minus.setOnClickListener { burnCount = (burnCount - 1).coerceAtLeast(0); countText.text = burnCount.toString() }
+        plus.setOnClickListener { burnCount++; countText.text = burnCount.toString() }
         row.addView(minus, LinearLayout.LayoutParams(dp(42), dp(40)).apply { marginEnd = dp(8) })
-        row.addView(value, LinearLayout.LayoutParams(dp(34), dp(40)))
+        row.addView(countText, LinearLayout.LayoutParams(dp(34), dp(40)))
         row.addView(plus, LinearLayout.LayoutParams(dp(42), dp(40)).apply { marginStart = dp(8) })
         return row
     }
 
-    private fun changeCount(morning: Boolean, delta: Int) {
-        if (morning) {
-            morningCount = (morningCount + delta).coerceAtLeast(0)
-            morningCountText.text = morningCount.toString()
-        } else {
-            eveningCount = (eveningCount + delta).coerceAtLeast(0)
-            eveningCountText.text = eveningCount.toString()
-        }
-    }
-
-
-    private fun weightRow(morning: Boolean): LinearLayout {
-        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(6), 0, dp(4)) }
-        row.addView(label("Вес ведра:", 13f, muted), LinearLayout.LayoutParams(0, dp(40), 1f))
-        val b10 = smallButton("10 кг")
-        val b20 = smallButton("20 кг")
-        if (morning) { morningWeight10 = b10; morningWeight20 = b20 } else { eveningWeight10 = b10; eveningWeight20 = b20 }
-        b10.setOnClickListener { if (morning) morningKg = 10 else eveningKg = 10; updateWeightButtons() }
-        b20.setOnClickListener { if (morning) morningKg = 20 else eveningKg = 20; updateWeightButtons() }
-        row.addView(b10, LinearLayout.LayoutParams(dp(76), dp(40)).apply { marginEnd = dp(6) })
-        row.addView(b20, LinearLayout.LayoutParams(dp(76), dp(40)))
-        return row
-    }
-
-    private fun updateWeightButtons() {
-        if (!::morningWeight10.isInitialized) return
-        listOf(morningWeight10 to (morningKg == 10), morningWeight20 to (morningKg == 20),
-            eveningWeight10 to (eveningKg == 10), eveningWeight20 to (eveningKg == 20)).forEach { (b, selected) ->
-            b.background = shape(if (selected) orange else panel2, 12)
-            b.setTextColor(if (selected) bg else white)
-        }
+    private fun updateEditorButtons() {
+        if (!::morningButton.isInitialized) return
+        morningButton.background = shape(if (period == "morning") orange else panel2, 12)
+        morningButton.setTextColor(if (period == "morning") bg else white)
+        eveningButton.background = shape(if (period == "evening") red else panel2, 12)
+        eveningButton.setTextColor(if (period == "evening") bg else white)
+        weight10Button.background = shape(if (bucketKg == 10) orange else panel2, 12)
+        weight10Button.setTextColor(if (bucketKg == 10) bg else white)
+        weight20Button.background = shape(if (bucketKg == 20) orange else panel2, 12)
+        weight20Button.setTextColor(if (bucketKg == 20) bg else white)
     }
 
     private fun sectionHeader(symbol: String, title: String, accent: Int): LinearLayout {
@@ -372,10 +337,9 @@ class MainActivity : ComponentActivity() {
     private fun space(height: Int) = TextView(this).apply { this.height = dp(height) }
 
     private fun saveCurrent() {
-        if (!::morningCheck.isInitialized) return
+        if (!::burnCheck.isInitialized) return
         val key = selectedDate.toString()
-        val value = BurnDay(morningCheck.isChecked, morningCount, eveningCheck.isChecked, eveningCount, morningKg, eveningKg)
-        if (value.morning || value.evening || value.morningBuckets > 0 || value.eveningBuckets > 0) records[key] = value
+        if (burnCheck.isChecked && burnCount > 0) records[key] = BurnDay(period, burnCount, bucketKg)
         else records.remove(key)
         persist()
     }
@@ -393,11 +357,9 @@ class MainActivity : ComponentActivity() {
         val obj = JSONObject()
         val arr = JSONArray()
         records.toSortedMap().forEach { (date, d) ->
-            arr.put(JSONObject().put("date", date).put("morning", d.morning)
-                .put("morningBuckets", d.morningBuckets).put("evening", d.evening)
-                .put("eveningBuckets", d.eveningBuckets).put("morningKg", d.morningKg).put("eveningKg", d.eveningKg))
+            arr.put(JSONObject().put("date", date).put("period", d.period).put("buckets", d.buckets).put("bucketKg", d.bucketKg))
         }
-        obj.put("version", 1).put("records", arr)
+        obj.put("version", 2).put("records", arr)
         return obj.toString(2)
     }
 
@@ -408,8 +370,16 @@ class MainActivity : ComponentActivity() {
             val item = arr.getJSONObject(i)
             val date = item.getString("date")
             LocalDate.parse(date)
-            restored[date] = BurnDay(item.optBoolean("morning"), item.optInt("morningBuckets"),
-                item.optBoolean("evening"), item.optInt("eveningBuckets"), item.optInt("morningKg", 20), item.optInt("eveningKg", 20))
+            if (item.has("period")) {
+                restored[date] = BurnDay(item.optString("period", "morning"), item.optInt("buckets"), item.optInt("bucketKg", 20))
+            } else {
+                val morning = item.optBoolean("morning")
+                val evening = item.optBoolean("evening")
+                val useMorning = morning || !evening
+                val buckets = if (useMorning) item.optInt("morningBuckets") else item.optInt("eveningBuckets")
+                val kg = if (useMorning) item.optInt("morningKg", 20) else item.optInt("eveningKg", 20)
+                if ((morning || evening) && buckets > 0) restored[date] = BurnDay(if (useMorning) "morning" else "evening", buckets, kg)
+            }
         }
         records.clear()
         records.putAll(restored)
