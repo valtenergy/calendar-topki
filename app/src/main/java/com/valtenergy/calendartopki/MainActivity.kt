@@ -12,6 +12,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
+import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -83,9 +84,11 @@ class MainActivity : ComponentActivity() {
         setContentView(scroll)
 
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        top.addView(TextView(this).apply {
-            text = "🔥"; textSize = 25f; gravity = Gravity.CENTER
+        top.addView(ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher_foreground)
             background = gradient(0xFF49271D.toInt(), 0xFF29232A.toInt(), 15)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(3), dp(3), dp(3), dp(3))
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(11), 0, 0, 0) }
         brand.addView(label("ЖУРНАЛ КОТЛА", 11f, orange, true))
