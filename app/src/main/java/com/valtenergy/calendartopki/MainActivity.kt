@@ -200,7 +200,7 @@ class MainActivity : ComponentActivity() {
         val statRow = LinearLayout(this).apply { setPadding(0, dp(12), 0, 0) }
         statRow.addView(statBlock(totalFires.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
         statRow.addView(statBlock(totalBuckets.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-        statRow.addView(statBlock("$" + "totalKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        statRow.addView(statBlock(totalKg.toString() + " кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
         stats.addView(statRow)
         root.addView(stats)
         val yearStats = card()
@@ -208,7 +208,7 @@ class MainActivity : ComponentActivity() {
         val yr = LinearLayout(this).apply { setPadding(0, dp(10), 0, 0) }
         yr.addView(statBlock(yearFires.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
         yr.addView(statBlock(yearBuckets.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-        yr.addView(statBlock("$" + "yearKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        yr.addView(statBlock(yearKg.toString() + " кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
         yearStats.addView(yr)
         root.addView(yearStats)
         val allStats = card()
@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity() {
         val ar = LinearLayout(this).apply { setPadding(0, dp(10), 0, 0) }
         ar.addView(statBlock(allFires.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
         ar.addView(statBlock(allBuckets.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-        ar.addView(statBlock("$" + "allKg кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        ar.addView(statBlock(allKg.toString() + " кг", "угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
         allStats.addView(ar)
         root.addView(allStats)
 
