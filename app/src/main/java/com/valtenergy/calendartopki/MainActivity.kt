@@ -301,7 +301,7 @@ class MainActivity : ComponentActivity() {
                 private val selectedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = orange
                     style = Paint.Style.STROKE
-                    strokeWidth = dp(1.5f).toFloat()
+                    strokeWidth = dp(2).toFloat()
                 }
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
