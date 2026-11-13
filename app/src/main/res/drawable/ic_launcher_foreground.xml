@@ -1,16 +1,31 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#343D49" android:strokeColor="#E8EDF4" android:strokeWidth="3.5"
-        android:strokeLineJoin="round" android:pathData="M44,24 L64,24 L64,36 L44,36 Z"/>
-    <path android:fillColor="#596575" android:strokeColor="#F5F7FA" android:strokeWidth="3.5"
-        android:strokeLineJoin="round" android:pathData="M29,39 Q29,35 34,35 L74,35 Q79,35 79,40 L79,76 Q79,82 73,82 L35,82 Q29,82 29,76 Z"/>
-    <path android:fillColor="#252C37" android:strokeColor="#FF963B" android:strokeWidth="3"
-        android:pathData="M38,50 Q38,46 43,46 L65,46 Q70,46 70,51 L70,69 Q70,74 65,74 L43,74 Q38,74 38,69 Z"/>
-    <path android:fillColor="#FF7135" android:pathData="M53,70 C43,65 47,57 53,49 C54,56 63,58 62,65 C61,70 57,73 53,70 Z"/>
-    <path android:fillColor="#FFD34E" android:pathData="M54,69 C50,64 56,61 56,56 C62,62 60,67 56,70 Z"/>
-    <path android:fillColor="#DDE4ED" android:pathData="M47,18 L61,18 L61,24 L47,24 Z"/>
-    <path android:fillColor="#343D49" android:strokeColor="#E8EDF4" android:strokeWidth="2.5"
-        android:pathData="M35,82 L35,88 L43,88 L43,82 Z M65,82 L65,88 L73,88 L73,82 Z"/>
-    <path android:fillColor="#FF963B" android:pathData="M22,49 L28,49 L28,54 L22,54 Z M80,49 L86,49 L86,54 L80,54 Z"/>
-    <path android:fillColor="#F5F7FA" android:pathData="M37,39 L42,39 L42,42 L37,42 Z M66,39 L71,39 L71,42 L66,42 Z"/>
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Chimney -->
+    <path android:fillColor="#647181" android:strokeColor="#E9EEF5" android:strokeWidth="2.5"
+        android:strokeLineJoin="round" android:pathData="M43,16 L65,16 L65,29 L43,29 Z"/>
+    <path android:fillColor="#303A47" android:strokeColor="#DCE3EB" android:strokeWidth="2"
+        android:pathData="M39,27 L69,27 L69,34 L39,34 Z"/>
+    <!-- Boiler shell -->
+    <path android:fillColor="#586575" android:strokeColor="#F1F4F8" android:strokeWidth="3"
+        android:strokeLineJoin="round" android:pathData="M27,39 Q27,33 35,33 L73,33 Q81,33 81,41 L81,77 Q81,85 73,85 L35,85 Q27,85 27,77 Z"/>
+    <path android:fillColor="#748292" android:pathData="M33,40 Q33,38 37,38 L71,38 Q75,38 75,42 L75,46 L33,46 Z"/>
+    <!-- Firebox door -->
+    <path android:fillColor="#202832" android:strokeColor="#FF963D" android:strokeWidth="3"
+        android:pathData="M37,51 Q37,47 42,47 L66,47 Q71,47 71,52 L71,72 Q71,77 66,77 L42,77 Q37,77 37,72 Z"/>
+    <path android:fillColor="#FF6A2F"
+        android:pathData="M53,72 C43,68 45,60 51,53 C52,59 59,60 61,65 C64,72 57,76 53,72 Z"/>
+    <path android:fillColor="#FFD45A"
+        android:pathData="M54,72 C50,67 55,64 56,59 C62,65 60,70 56,73 Z"/>
+    <!-- Gauge and controls -->
+    <path android:fillColor="#202832" android:strokeColor="#F1F4F8" android:strokeWidth="2"
+        android:pathData="M43,31 A5,5 0,1 0,53 31 A5,5 0,1 0,43 31"/>
+    <path android:fillColor="#FF9A42" android:pathData="M48,27 L49,31 L52,31 Z"/>
+    <path android:fillColor="#E8EDF3" android:pathData="M31,52 L34,52 L34,61 L31,61 Z M74,52 L77,52 L77,61 L74,61 Z"/>
+    <!-- Feet -->
+    <path android:fillColor="#303A47" android:strokeColor="#DCE3EB" android:strokeWidth="2"
+        android:pathData="M34,84 L34,91 L44,91 L44,84 Z M64,84 L64,91 L74,91 L74,84 Z"/>
+    <path android:fillColor="#FF8A32" android:pathData="M30,91 L48,91 L48,94 L30,94 Z M60,91 L78,91 L78,94 L60,94 Z"/>
 </vector>
