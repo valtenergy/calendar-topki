@@ -1,21 +1,12 @@
 package com.valtenergy.calendartopki
 
 import android.content.res.ColorStateList
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.LinearLayout
-import android.widget.ImageView
-import android.widget.ScrollView
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import org.json.JSONArray
@@ -25,406 +16,96 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-data class BurnDay(var period: String = "morning", var buckets: Int = 0, var bucketKg: Int = 20)
+data class Session(var buckets:Int=0,var kg:Int=20)
+data class BurnDay(var morning:Session?=null,var evening:Session?=null)
 
-class MainActivity : ComponentActivity() {
-    private val records = mutableMapOf<String, BurnDay>()
-    private var selectedDate = LocalDate.now()
-    private lateinit var root: LinearLayout
-    private lateinit var burnCheck: CheckBox
-    private lateinit var countText: TextView
-    private lateinit var morningButton: Button
-    private lateinit var eveningButton: Button
-    private lateinit var weight10Button: Button
-    private lateinit var weight20Button: Button
-    private var burnCount = 0
-    private var bucketKg = 20
-    private var period = "morning"
-
-    private val bg = 0xFF101319.toInt()
-    private val surface = 0xFF1A2029.toInt()
-    private val surface2 = 0xFF27313D.toInt()
-    private val surface3 = 0xFF394451.toInt()
-    private val orange = 0xFFFF8A32.toInt()
-    private val red = 0xFFEF5148.toInt()
-    private val white = 0xFFF4F6F8.toInt()
-    private val muted = 0xFF9BA7B5.toInt()
-    private val green = 0xFF64C995.toInt()
-
-    private val createBackup = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) try {
-            contentResolver.openOutputStream(uri)?.use { it.write(exportJson().toByteArray(Charsets.UTF_8)) }
-            toast("Резервная копия сохранена")
-        } catch (_: Exception) { toast("Не удалось сохранить копию") }
-    }
-    private val openBackup = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) try {
-            val json = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
-            importJson(json); persist(); render(); toast("Резервная копия восстановлена")
-        } catch (_: Exception) { toast("Не удалось прочитать файл копии") }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
-        window.decorView.systemUiVisibility = 0
-        loadSaved()
-        render()
-    }
-
-    private fun render() {
-        val scroll = ScrollView(this).apply { setBackgroundColor(bg); clipToPadding = false }
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(14), dp(18), dp(30))
-            setBackgroundColor(bg)
-        }
-        scroll.addView(root)
-        setContentView(scroll)
-
-        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        top.addView(ImageView(this).apply {
-            setImageResource(R.drawable.ic_launcher_foreground)
-            background = gradient(0xFF49271D.toInt(), 0xFF29232A.toInt(), 15)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(3), dp(3), dp(3), dp(3))
-        }, LinearLayout.LayoutParams(dp(48), dp(48)))
-        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(11), 0, 0, 0) }
-        brand.addView(label("ЖУРНАЛ КОТЛА", 11f, orange, true))
-        brand.addView(label("УЧЁТ ОТОПЛЕНИЯ", 10f, muted, true).apply { setPadding(0, dp(3), 0, 0) })
-        top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(top)
-        root.addView(space(18))
-
-        val today = records[LocalDate.now().toString()]
-        root.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = gradient(0xFF43291F.toInt(), 0xFF25252C.toInt(), 20)
-            setPadding(dp(18), dp(17), dp(18), dp(17))
-            addView(label("СЕГОДНЯ  ·  " + LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))).uppercase(Locale("ru")), 10f, 0xFFFFB06A.toInt(), true))
-            addView(label("Отопление под контролем", 21f, white, true).apply { setPadding(0, dp(9), 0, dp(4)) })
-            addView(label("Записывай растопки и следи за расходом угля", 12f, 0xFFC2C5CC.toInt()))
-            addView(label(if (today != null) "●  Сегодня была растопка" else "○  Сегодня ещё не отмечено",
-                13f, if (today != null) green else 0xFFFFB06A.toInt(), true).apply { setPadding(0, dp(14), 0, 0) })
-        })
-        root.addView(space(20))
-
-        sectionTitle("КАЛЕНДАРЬ", "История растопок")
-        val calendar = card()
-        val monthRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val prev = textButton("‹", 27f)
-        val next = textButton("›", 27f)
-        monthRow.addView(prev, LinearLayout.LayoutParams(dp(42), dp(42)))
-        monthRow.addView(label(selectedDate.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru"))).replaceFirstChar { it.uppercase() },
-            17f, white, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, dp(42), 1f))
-        monthRow.addView(next, LinearLayout.LayoutParams(dp(42), dp(42)))
-        calendar.addView(monthRow)
-        prev.setOnClickListener { saveCurrent(); selectedDate = selectedDate.minusMonths(1); render() }
-        next.setOnClickListener { saveCurrent(); selectedDate = selectedDate.plusMonths(1); render() }
-        val weekdays = LinearLayout(this)
-        listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС").forEach {
-            weekdays.addView(label(it, 10f, muted, true).apply { gravity = Gravity.CENTER },
-                LinearLayout.LayoutParams(0, dp(30), 1f))
-        }
-        calendar.addView(weekdays)
-        val ym = YearMonth.from(selectedDate)
-        val offset = ym.atDay(1).dayOfWeek.value - 1
-        val cells = ((offset + ym.lengthOfMonth() + 6) / 7) * 7
-        for (week in 0 until cells / 7) {
-            val row = LinearLayout(this)
-            for (col in 0..6) {
-                val day = week * 7 + col - offset + 1
-                val cell: View = if (day in 1..ym.lengthOfMonth()) {
-                    val date = ym.atDay(day)
-                    val marked = (records[date.toString()]?.buckets ?: 0) > 0
-                    val selected = date == selectedDate
-                    LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-                        background = when {
-                            selected -> gradient(orange, red, 12)
-                            marked -> shape(0xFF3A2B25.toInt(), 12)
-                            date == LocalDate.now() -> outline(orange, 12)
-                            else -> shape(0x00202020, 12)
-                        }
-                        addView(label(day.toString(), 14f, if (selected) bg else white, selected))
-                        addView(label(if (marked) "●" else " ", 8f, if (selected) bg else orange, true))
-                        setOnClickListener { saveCurrent(); selectedDate = date; render() }
-                    }
-                } else View(this)
-                row.addView(cell, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                    setMargins(dp(2), dp(2), dp(2), dp(2))
-                })
-            }
-            calendar.addView(row)
-        }
-        calendar.addView(label("●  растопка      ▢  сегодня", 11f, muted).apply { setPadding(0, dp(9), 0, 0) })
-        root.addView(calendar)
-        root.addView(space(20))
-
-        val rec = records[selectedDate.toString()]
-        burnCount = rec?.buckets ?: 0
-        bucketKg = rec?.bucketKg ?: 20
-        period = rec?.period ?: "morning"
-        sectionTitle("ЗАПИСЬ ЗА ДЕНЬ",
-            selectedDate.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru"))).replaceFirstChar { it.uppercase() })
-        val entry = card()
-        burnCheck = CheckBox(this).apply {
-            text = "В этот день топил котёл"; isChecked = rec != null; textSize = 15f
-            setTextColor(white); buttonTintList = ColorStateList.valueOf(orange)
-        }
-        entry.addView(burnCheck)
-        entry.addView(label("ВРЕМЯ РАСТОПКИ", 10f, muted, true).apply { setPadding(0, dp(15), 0, dp(8)) })
-        val times = LinearLayout(this)
-        morningButton = selectButton("☀  Утром")
-        eveningButton = selectButton("◐  Вечером")
-        times.addView(morningButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
-        times.addView(eveningButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
-        entry.addView(times)
-        morningButton.setOnClickListener { period = "morning"; updateEditorButtons() }
-        eveningButton.setOnClickListener { period = "evening"; updateEditorButtons() }
-        entry.addView(label("ВЕС ОДНОГО ВЕДРА", 10f, muted, true).apply { setPadding(0, dp(15), 0, dp(8)) })
-        val weights = LinearLayout(this)
-        weight10Button = selectButton("10 кг"); weight20Button = selectButton("20 кг")
-        weights.addView(weight10Button, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) })
-        weights.addView(weight20Button, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(5) })
-        entry.addView(weights)
-        weight10Button.setOnClickListener { bucketKg = 10; updateEditorButtons(); updateFuelTotal() }
-        weight20Button.setOnClickListener { bucketKg = 20; updateEditorButtons(); updateFuelTotal() }
-        entry.addView(label("КОЛИЧЕСТВО ВЁДЕР", 10f, muted, true).apply { setPadding(0, dp(15), 0, dp(8)) })
-        val counter = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val minus = textButton("−", 24f); val plus = textButton("+", 24f)
-        countText = label(burnCount.toString(), 23f, white, true).apply { gravity = Gravity.CENTER }
-        counter.addView(minus, LinearLayout.LayoutParams(dp(52), dp(48)))
-        counter.addView(countText, LinearLayout.LayoutParams(0, dp(48), 1f))
-        counter.addView(plus, LinearLayout.LayoutParams(dp(52), dp(48)))
-        entry.addView(counter)
-        minus.setOnClickListener { burnCount = (burnCount - 1).coerceAtLeast(0); countText.text = burnCount.toString(); updateFuelTotal() }
-        plus.setOnClickListener { burnCount++; countText.text = burnCount.toString(); updateFuelTotal() }
-        entry.addView(label((burnCount * bucketKg).toString() + " кг угля за эту растопку", 13f, orange, true).apply {
-            tag = "fuelTotal"; setPadding(0, dp(12), 0, 0)
-        })
-        root.addView(entry)
-        updateEditorButtons()
-        root.addView(primaryButton("СОХРАНИТЬ ЗАПИСЬ").apply {
-            setOnClickListener { saveCurrent(); render(); toast("Запись сохранена") }
-        }, LinearLayout.LayoutParams(-1, dp(54)).apply { topMargin = dp(10) })
-        root.addView(space(22))
-
-        val monthRecords = records.filterKeys { it.startsWith(YearMonth.from(selectedDate).toString()) }.values
-        sectionTitle("СТАТИСТИКА", "Итоги за месяц")
-        root.addView(card().apply {
-            val row = LinearLayout(this@MainActivity)
-            row.addView(statTile(monthRecords.size.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(statTile(monthRecords.sumOf { it.buckets }.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(statTile(monthRecords.sumOf { it.buckets * it.bucketKg }.toString(), "кг угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
-            addView(row)
-        })
-        root.addView(yearSummary(selectedDate.year))
-        root.addView(monthlyChart(selectedDate.year))
-
-        root.addView(space(10))
-        sectionTitle("ДАННЫЕ", "Резервная копия")
-        root.addView(card().apply {
-            addView(label("Сохрани записи в файл, чтобы перенести их на другой телефон или восстановить позже.", 12f, muted))
-            val row = LinearLayout(this@MainActivity).apply { setPadding(0, dp(13), 0, 0) }
-            val export = secondaryButton("СОЗДАТЬ КОПИЮ")
-            val restore = secondaryButton("ВОССТАНОВИТЬ")
-            row.addView(export, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
-            row.addView(restore, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
-            addView(row)
-            export.setOnClickListener { saveCurrent(); createBackup.launch("zhurnal-kotla-backup.json") }
-            restore.setOnClickListener { openBackup.launch(arrayOf("application/json", "text/*")) }
-        })
-        root.addView(label("ЖУРНАЛ КОТЛА  ·  ДАННЫЕ ХРАНЯТСЯ НА ТЕЛЕФОНЕ", 9f, muted, true)
-            .apply { gravity = Gravity.CENTER; setPadding(0, dp(20), 0, 0) })
-    }
-
-    private fun updateFuelTotal() {
-        root.findViewWithTag<TextView>("fuelTotal")?.text = (burnCount * bucketKg).toString() + " кг угля за эту растопку"
-    }
-
-    private fun yearSummary(year: Int) = card().apply {
-        val items = records.filterKeys { it.startsWith(year.toString()) }.values
-        addView(label("ИТОГО ЗА " + year + " ГОД", 10f, muted, true))
-        val row = LinearLayout(this@MainActivity).apply { setPadding(0, dp(12), 0, 0) }
-        row.addView(statTile(items.size.toString(), "растопок", orange), LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(statTile(items.sumOf { it.buckets }.toString(), "вёдер", red), LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(statTile(items.sumOf { it.buckets * it.bucketKg }.toString(), "кг угля", orange), LinearLayout.LayoutParams(0, -2, 1f))
-        addView(row)
-    }
-
-    private fun monthlyChart(year: Int) = card().apply {
-        val months = (1..12).map { m ->
-            val ym = YearMonth.of(year, m)
-            val list = records.filterKeys { it.startsWith(ym.toString()) }.values
-            Triple(ym.format(DateTimeFormatter.ofPattern("LLL", Locale("ru"))).replace(".", ""), list.size, list.sumOf { it.buckets * it.bucketKg })
-        }
-        val maxKg = (months.maxOfOrNull { it.third } ?: 0).coerceAtLeast(1)
-        addView(label("РАСХОД ПО МЕСЯЦАМ", 10f, muted, true))
-        addView(label("Сколько угля использовано", 17f, white, true).apply { setPadding(0, dp(4), 0, dp(12)) })
-        addView(object : View(this@MainActivity) {
-            private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = surface3; strokeWidth = dp(1).toFloat() }
-            private val txt = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = muted; textSize = dp(10).toFloat(); textAlign = Paint.Align.CENTER
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            }
-            private val bar = Paint(Paint.ANTI_ALIAS_FLAG)
-            override fun onDraw(canvas: Canvas) {
-                val left = dp(7).toFloat(); val right = width - dp(7).toFloat()
-                val top = dp(10).toFloat(); val bottom = height - dp(27).toFloat()
-                val chartH = bottom - top; val slot = (right - left) / 12f
-                for (i in 0..3) {
-                    val y = top + chartH * i / 3f
-                    canvas.drawLine(left, y, right, y, grid)
-                }
-                months.forEachIndexed { index, item ->
-                    val cx = left + slot * (index + .5f); val bw = slot * .58f
-                    val barTop = bottom - chartH * item.third.toFloat() / maxKg.toFloat()
-                    canvas.drawRoundRect(RectF(cx - bw / 2, top, cx + bw / 2, bottom), dp(4).toFloat(), dp(4).toFloat(), grid)
-                    if (item.third > 0) {
-                        bar.shader = android.graphics.LinearGradient(0f, barTop, 0f, bottom, orange, red, android.graphics.Shader.TileMode.CLAMP)
-                        canvas.drawRoundRect(RectF(cx - bw / 2, barTop, cx + bw / 2, bottom), dp(4).toFloat(), dp(4).toFloat(), bar)
-                        bar.shader = null
-                    }
-                    canvas.drawText(item.first, cx, height - dp(7).toFloat(), txt)
-                }
-            }
-        }.apply { layoutParams = LinearLayout.LayoutParams(-1, dp(150)) })
-        addView(space(8))
-        months.forEachIndexed { i, item ->
-            val row = LinearLayout(this@MainActivity).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(7), 0, dp(7)) }
-            row.addView(label(item.first.replaceFirstChar { it.uppercase() }, 13f, white, true), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(label(item.second.toString() + " раст.", 11f, muted).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(dp(66), -2))
-            row.addView(label(item.third.toString() + " кг", 13f, if (item.third > 0) orange else muted, true).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(dp(70), -2))
-            addView(row)
-            if (i < 11) addView(View(this@MainActivity).apply {
-                setBackgroundColor(surface2); layoutParams = LinearLayout.LayoutParams(-1, dp(1))
-            })
-        }
-    }
-
-    private fun updateEditorButtons() {
-        if (!::morningButton.isInitialized) return
-        setSelected(morningButton, period == "morning", orange)
-        setSelected(eveningButton, period == "evening", red)
-        setSelected(weight10Button, bucketKg == 10, orange)
-        setSelected(weight20Button, bucketKg == 20, orange)
-    }
-
-    private fun setSelected(button: Button, selected: Boolean, accent: Int) {
-        button.background = if (selected) gradient(accent, accent, 12) else shape(surface2, 12)
-        button.setTextColor(if (selected) bg else white)
-    }
-
-    private fun sectionTitle(kicker: String, title: String) {
-        root.addView(label(kicker, 10f, orange, true).apply { letterSpacing = .12f })
-        root.addView(label(title, 20f, white, true).apply { setPadding(0, dp(4), 0, dp(11)) })
-    }
-
-    private fun statTile(value: String, caption: String, accent: Int) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        addView(label(value, 24f, accent, true))
-        addView(label(caption, 11f, muted).apply { setPadding(0, dp(2), 0, 0) })
-    }
-
-    private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(15), dp(14), dp(15), dp(14))
-        background = shape(surface, 18)
-        elevation = dp(1).toFloat()
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) }
-    }
-
-    private fun label(value: String, size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {
-        text = value; textSize = size; setTextColor(color)
-        if (bold) setTypeface(null, Typeface.BOLD)
-    }
-
-    private fun textButton(value: String, size: Float) = Button(this).apply {
-        text = value; textSize = size; setTextColor(white); background = shape(surface2, 13)
-        isAllCaps = false; stateListAnimator = null
-        minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
-        setPadding(0, 0, 0, 0)
-    }
-
-    private fun selectButton(value: String) = Button(this).apply {
-        text = value; textSize = 14f; setTypeface(null, Typeface.BOLD); setTextColor(white)
-        background = shape(surface2, 12); isAllCaps = false; stateListAnimator = null
-        minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
-        setPadding(dp(8), 0, dp(8), 0)
-    }
-
-    private fun primaryButton(value: String) = Button(this).apply {
-        text = value; textSize = 13f; setTypeface(null, Typeface.BOLD); setTextColor(bg)
-        background = gradient(orange, red, 15); isAllCaps = false; stateListAnimator = null
-        minHeight = 0; minimumHeight = 0; setPadding(dp(12), 0, dp(12), 0)
-    }
-
-    private fun secondaryButton(value: String) = Button(this).apply {
-        text = value; textSize = 11f; setTypeface(null, Typeface.BOLD); setTextColor(white)
-        background = shape(surface2, 12); isAllCaps = false; stateListAnimator = null
-        minHeight = 0; minimumHeight = 0; setPadding(dp(6), 0, dp(6), 0)
-    }
-
-    private fun shape(color: Int, radius: Int) = GradientDrawable().apply {
-        setColor(color); cornerRadius = dp(radius).toFloat()
-    }
-
-    private fun gradient(start: Int, end: Int, radius: Int) = GradientDrawable(
-        GradientDrawable.Orientation.TL_BR, intArrayOf(start, end)
-    ).apply { cornerRadius = dp(radius).toFloat() }
-
-    private fun outline(color: Int, radius: Int) = GradientDrawable().apply {
-        setColor(0x00202020); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), color)
-    }
-
-    private fun space(height: Int) = View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(height)) }
-
-    private fun saveCurrent() {
-        if (!::burnCheck.isInitialized) return
-        val key = selectedDate.toString()
-        if (burnCheck.isChecked && burnCount > 0) records[key] = BurnDay(period, burnCount, bucketKg)
-        else records.remove(key)
-        persist()
-    }
-
-    private fun persist() {
-        getSharedPreferences("burn_calendar", MODE_PRIVATE).edit().putString("records", exportJson()).apply()
-    }
-
-    private fun loadSaved() {
-        val raw = getSharedPreferences("burn_calendar", MODE_PRIVATE).getString("records", null) ?: return
-        try { importJson(raw) } catch (_: Exception) { }
-    }
-
-    private fun exportJson(): String {
-        val obj = JSONObject(); val arr = JSONArray()
-        records.toSortedMap().forEach { (date, d) ->
-            arr.put(JSONObject().put("date", date).put("period", d.period).put("buckets", d.buckets).put("bucketKg", d.bucketKg))
-        }
-        obj.put("version", 2).put("records", arr)
-        return obj.toString(2)
-    }
-
-    private fun importJson(raw: String) {
-        val arr = JSONObject(raw).getJSONArray("records")
-        val restored = mutableMapOf<String, BurnDay>()
-        for (i in 0 until arr.length()) {
-            val item = arr.getJSONObject(i); val date = item.getString("date"); LocalDate.parse(date)
-            if (item.has("period")) {
-                restored[date] = BurnDay(item.optString("period", "morning"), item.optInt("buckets"), item.optInt("bucketKg", 20))
-            } else {
-                val morning = item.optBoolean("morning"); val evening = item.optBoolean("evening")
-                val useMorning = morning || !evening
-                val buckets = if (useMorning) item.optInt("morningBuckets") else item.optInt("eveningBuckets")
-                val kg = if (useMorning) item.optInt("morningKg", 20) else item.optInt("eveningKg", 20)
-                if ((morning || evening) && buckets > 0) restored[date] = BurnDay(if (useMorning) "morning" else "evening", buckets, kg)
-            }
-        }
-        records.clear(); records.putAll(restored)
-    }
-
-    private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+class MainActivity:ComponentActivity(){
+ private val records=mutableMapOf<String,BurnDay>()
+ private var selected=LocalDate.now(); private var month=YearMonth.now()
+ private var screen="calendar"; private var period="morning"; private var buckets=0; private var kg=20
+ private lateinit var page:LinearLayout
+ private val bg=0xFF0D1015.toInt(); private val panel=0xFF191E26.toInt(); private val panel2=0xFF242B35.toInt()
+ private val orange=0xFFFF861F.toInt(); private val red=0xFFE94D32.toInt(); private val white=0xFFF4F5F7.toInt()
+ private val muted=0xFF9AA5B2.toInt(); private val green=0xFF32D583.toInt()
+ private val createBackup=registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")){u->if(u!=null)try{contentResolver.openOutputStream(u)?.use{it.write(exportJson().toByteArray())};toast("Резервная копия сохранена")}catch(e:Exception){toast("Не удалось сохранить копию")}}
+ private val openBackup=registerForActivityResult(ActivityResultContracts.OpenDocument()){u->if(u!=null)try{val s=contentResolver.openInputStream(u)?.bufferedReader()?.use{it.readText()}?:error("empty");importJson(s);persist();render();toast("Данные восстановлены")}catch(e:Exception){toast("Не удалось восстановить копию")}}
+ override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);window.statusBarColor=bg;window.navigationBarColor=bg;load();render()}
+ private fun render(){
+  val outer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(bg)}
+  val scroll=ScrollView(this);page=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(18));setBackgroundColor(bg)}
+  scroll.addView(page);outer.addView(scroll,LinearLayout.LayoutParams(-1,0,1f));outer.addView(navBar(),LinearLayout.LayoutParams(-1,dp(68)));setContentView(outer)
+  when(screen){"calendar"->calendarScreen();"stats"->statsScreen();"backup"->backupScreen();else->settingsScreen()}
+ }
+ private fun header(k:String,t:String){page.addView(txt(k,10,orange,true));page.addView(txt(t,24,white,true).apply{setPadding(0,dp(4),0,dp(14))})}
+ private fun calendarScreen(){
+  val h=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+  h.addView(ImageView(this).apply{setImageResource(R.drawable.ic_launcher_full);scaleType=ImageView.ScaleType.FIT_CENTER},LinearLayout.LayoutParams(dp(54),dp(54)))
+  val n=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(10),0,0,0)}
+  n.addView(txt("Журнал котла",22,white,true));n.addView(txt("Учёт растопок и расхода угля",12,muted));h.addView(n);page.addView(h);page.addView(space(14))
+  val today=records[LocalDate.now().toString()]
+  card().also{it.addView(txt("СЕГОДНЯ · "+LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM",Locale("ru"))).uppercase(Locale("ru")),10,0xFFFFB46D.toInt(),true));it.addView(txt("Отопление под контролем",21,white,true).apply{setPadding(0,dp(7),0,dp(4))});it.addView(txt(if(today?.let{it.morning!=null||it.evening!=null}==true)"🔥 Сегодня котёл топили" else "Сегодня растопка ещё не отмечена",13,if(today==null)muted else green,true));page.addView(it)}
+  page.addView(space(16));header("КАЛЕНДАРЬ","История растопок")
+  card().also{c->
+   val r=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+   r.addView(action("‹",28){month=month.minusMonths(1);render()},LinearLayout.LayoutParams(dp(44),dp(42)))
+   r.addView(txt(month.format(DateTimeFormatter.ofPattern("LLLL yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()},17,white,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(0,dp(42),1f))
+   r.addView(action("›",28){month=month.plusMonths(1);render()},LinearLayout.LayoutParams(dp(44),dp(42)));c.addView(r)
+   val wd=LinearLayout(this);listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс").forEach{wd.addView(txt(it,11,muted,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(0,dp(30),1f))};c.addView(wd)
+   val off=month.atDay(1).dayOfWeek.value-1;val count=((off+month.lengthOfMonth()+6)/7)*7
+   for(w in 0 until count/7){val row=LinearLayout(this);for(col in 0..6){val d=w*7+col-off+1
+    val cell=if(d in 1..month.lengthOfMonth()){val date=month.atDay(d);val rec=records[date.toString()];val marked=rec?.let{it.morning!=null||it.evening!=null}==true
+     LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=when{date==selected->grad(orange,red,12);marked->shape(0xFF38291F,12);date==LocalDate.now()->stroke(orange,12);else->shape(panel,12)}
+      addView(txt(d.toString(),14,if(date==selected)bg else white,true));addView(txt(if(marked)"🔥" else " ",10,orange));setOnClickListener{selected=date;loadEditor();render()}}
+    }else View(this)
+    row.addView(cell,LinearLayout.LayoutParams(0,dp(48),1f).apply{setMargins(dp(2),dp(2),dp(2),dp(2))})
+   };c.addView(row)}
+   c.addView(txt("🔥 растопка     Оранжевая рамка — сегодня",10,muted).apply{setPadding(0,dp(8),0,0)});page.addView(c)
+  }
+  page.addView(space(14));header("НОВАЯ ЗАПИСЬ",selected.format(DateTimeFormatter.ofPattern("d MMMM yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()})
+  card().also{c->
+   val sw=LinearLayout(this);sw.addView(pill("☀ Утро",period=="morning"){period="morning";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginEnd=dp(5)});sw.addView(pill("☾ Вечер",period=="evening"){period="evening";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginStart=dp(5)});c.addView(sw)
+   val s=getSession(selected,period);buckets=s?.buckets?:0;kg=s?.kg?:20
+   c.addView(txt("КОЛИЧЕСТВО ВЁДЕР УГЛЯ",10,muted,true).apply{setPadding(0,dp(16),0,dp(8))})
+   val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+   row.addView(action("−",24){buckets=(buckets-1).coerceAtLeast(0);render()},LinearLayout.LayoutParams(dp(52),dp(48)))
+   row.addView(txt(buckets.toString(),24,white,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(0,dp(48),1f))
+   row.addView(action("+",24){buckets++;render()},LinearLayout.LayoutParams(dp(52),dp(48)));c.addView(row)
+   c.addView(txt("ВЕС ОДНОГО ВЕДРА",10,muted,true).apply{setPadding(0,dp(14),0,dp(8))})
+   val weights=LinearLayout(this);weights.addView(pill("10 кг",kg==10){kg=10;render()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginEnd=dp(5)});weights.addView(pill("20 кг",kg==20){kg=20;render()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(5)});c.addView(weights)
+   c.addView(txt((buckets*kg).toString()+" кг угля за эту растопку",14,orange,true).apply{setPadding(0,dp(13),0,0)})
+  }
+  page.addView(primary("СОХРАНИТЬ ЗАПИСЬ"){saveEditor();toast("Запись сохранена");render()},LinearLayout.LayoutParams(-1,dp(54)).apply{topMargin=dp(10)})
+  page.addView(space(14));val m=monthRecords(month);val st=card();st.addView(txt("ИТОГО ЗА МЕСЯЦ",10,muted,true));val row=LinearLayout(this);row.addView(metric(m.size.toString(),"растопок"),LinearLayout.LayoutParams(0,-2,1f));row.addView(metric(m.sumOf{it.buckets}.toString(),"вёдер"),LinearLayout.LayoutParams(0,-2,1f));row.addView(metric(m.sumOf{it.buckets*it.kg}.toString(),"кг угля"),LinearLayout.LayoutParams(0,-2,1f));st.addView(row);page.addView(st)
+ }
+ private fun statsScreen(){header("АНАЛИТИКА","Статистика");val all=records.values.flatMap{listOfNotNull(it.morning,it.evening)};val c=card();val r=LinearLayout(this);r.addView(metric(all.size.toString(),"растопок"),LinearLayout.LayoutParams(0,-2,1f));r.addView(metric(all.sumOf{it.buckets}.toString(),"вёдер"),LinearLayout.LayoutParams(0,-2,1f));r.addView(metric(all.sumOf{it.buckets*it.kg}.toString(),"кг угля"),LinearLayout.LayoutParams(0,-2,1f));c.addView(r);page.addView(c);page.addView(space(12));header("РАСХОД","По месяцам")
+  for(i in 1..12){val ym=YearMonth.of(month.year,i);val ss=monthRecords(ym);val used=ss.sumOf{it.buckets*it.kg};val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL};row.addView(txt(ym.format(DateTimeFormatter.ofPattern("LLLL",Locale("ru"))).replaceFirstChar{it.uppercase()},14,white,true),LinearLayout.LayoutParams(0,dp(42),1f));row.addView(txt(ss.size.toString()+" топок",12,muted),LinearLayout.LayoutParams(dp(78),-2));row.addView(txt(used.toString()+" кг",14,orange,true).apply{gravity=Gravity.END},LinearLayout.LayoutParams(dp(76),-2));page.addView(row);page.addView(View(this).apply{setBackgroundColor(panel2);layoutParams=LinearLayout.LayoutParams(-1,dp(1))})}
+ }
+ private fun backupScreen(){header("БЕЗОПАСНОСТЬ","Резервная копия");card().also{it.gravity=Gravity.CENTER_HORIZONTAL;it.addView(txt("☁",54,orange,true));it.addView(txt("Твои записи всегда под рукой",18,white,true).apply{gravity=Gravity.CENTER;setPadding(0,dp(8),0,dp(5))});it.addView(txt("Сохрани файл копии или восстанови данные из ранее созданного файла.",12,muted).apply{gravity=Gravity.CENTER});page.addView(it)}
+  page.addView(primary("☁  СОЗДАТЬ РЕЗЕРВНУЮ КОПИЮ"){createBackup.launch("zhurnal-kotla-backup.json")},LinearLayout.LayoutParams(-1,dp(54)).apply{topMargin=dp(10)})
+  page.addView(outlineButton("↓  ВОССТАНОВИТЬ ИЗ КОПИИ"){openBackup.launch(arrayOf("application/json","text/*"))},LinearLayout.LayoutParams(-1,dp(52)).apply{topMargin=dp(10)})
+  page.addView(space(16));card().also{it.addView(txt("СОВЕТ",10,orange,true));it.addView(txt("Не удаляй файл резервной копии после восстановления. Храни его отдельно.",13,white).apply{setPadding(0,dp(7),0,0)});page.addView(it)}
+ }
+ private fun settingsScreen(){header("ПРИЛОЖЕНИЕ","Настройки");card().also{it.addView(txt("ТЕМА ОФОРМЛЕНИЯ",10,orange,true));it.addView(txt("Тёмная с оранжевыми акцентами",15,white,true).apply{setPadding(0,dp(8),0,0)});it.addView(txt("Журнал котла · версия 7.2",12,muted).apply{setPadding(0,dp(14),0,0)});page.addView(it)}}
+ private fun navBar()=LinearLayout(this).apply{setBackgroundColor(0xFF151920.toInt());gravity=Gravity.CENTER;listOf(Triple("calendar","▦","Календарь"),Triple("stats","▥","Статистика"),Triple("backup","☁","Копия"),Triple("settings","⚙","Настройки")).forEach{(id,ico,label)->addView(LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=if(screen==id)grad(orange,red,12)else shape(0x00111111,12);setPadding(dp(5),dp(6),dp(5),dp(5));addView(txt(ico,21,if(screen==id)bg else white,true).apply{gravity=Gravity.CENTER});addView(txt(label,10,if(screen==id)bg else muted,true).apply{gravity=Gravity.CENTER});setOnClickListener{screen=id;render()}},LinearLayout.LayoutParams(0,dp(58),1f).apply{setMargins(dp(3),dp(4),dp(3),dp(4))})}}
+ private fun loadEditor(){val s=getSession(selected,period);buckets=s?.buckets?:0;kg=s?.kg?:20}
+ private fun getSession(d:LocalDate,p:String)=records[d.toString()]?.let{if(p=="morning")it.morning else it.evening}
+ private fun saveEditor(){val d=records.getOrPut(selected.toString()){BurnDay()};val s=if(buckets<=0)null else Session(buckets,kg);if(period=="morning")d.morning=s else d.evening=s;if(d.morning==null&&d.evening==null)records.remove(selected.toString());persist()}
+ private fun monthRecords(ym:YearMonth)=records.filterKeys{it.startsWith(ym.toString())}.values.flatMap{listOfNotNull(it.morning,it.evening)}
+ private fun metric(v:String,l:String)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;addView(txt(v,23,orange,true));addView(txt(l,11,muted))}
+ private fun card()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;background=shape(panel,18);setPadding(dp(15),dp(14),dp(15),dp(14));layoutParams=LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)}}
+ private fun txt(s:String,size:Int,color:Int,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size.toFloat();setTextColor(color);if(bold)setTypeface(null,Typeface.BOLD)}
+ private fun action(s:String,size:Int,click:()->Unit)=Button(this).apply{text=s;textSize=size.toFloat();setTextColor(white);background=shape(panel2,12);isAllCaps=false;minHeight=0;minimumHeight=0;minWidth=0;minimumWidth=0;stateListAnimator=null;setOnClickListener{click()}}
+ private fun pill(s:String,sel:Boolean,click:()->Unit)=Button(this).apply{text=s;textSize=14f;setTypeface(null,Typeface.BOLD);setTextColor(if(sel)bg else white);background=if(sel)grad(orange,red,12)else shape(panel2,12);isAllCaps=false;minHeight=0;minimumHeight=0;stateListAnimator=null;setOnClickListener{click()}}
+ private fun primary(s:String,click:()->Unit)=Button(this).apply{text=s;textSize=13f;setTypeface(null,Typeface.BOLD);setTextColor(bg);background=grad(orange,red,14);isAllCaps=false;minHeight=0;minimumHeight=0;stateListAnimator=null;setOnClickListener{click()}}
+ private fun outlineButton(s:String,click:()->Unit)=Button(this).apply{text=s;textSize=13f;setTextColor(white);background=stroke(orange,14);isAllCaps=false;minHeight=0;minimumHeight=0;stateListAnimator=null;setOnClickListener{click()}}
+ private fun shape(color:Int,r:Int)=GradientDrawable().apply{setColor(color);cornerRadius=dp(r).toFloat()}
+ private fun grad(a:Int,b:Int,r:Int)=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(a,b)).apply{cornerRadius=dp(r).toFloat()}
+ private fun stroke(color:Int,r:Int)=GradientDrawable().apply{setColor(0xFF171B22.toInt());cornerRadius=dp(r).toFloat();setStroke(dp(1),color)}
+ private fun space(h:Int)=View(this).apply{layoutParams=LinearLayout.LayoutParams(1,dp(h))}
+ private fun dp(v:Int)=(v*resources.displayMetrics.density).toInt()
+ private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_SHORT).show()
+ private fun persist(){getSharedPreferences("burn_calendar",MODE_PRIVATE).edit().putString("records",exportJson()).apply()}
+ private fun load(){val s=getSharedPreferences("burn_calendar",MODE_PRIVATE).getString("records",null)?:return;try{importJson(s)}catch(_:Exception){}}
+ private fun exportJson():String{val a=JSONArray();records.toSortedMap().forEach{(date,d)->a.put(JSONObject().put("date",date).put("morningBuckets",d.morning?.buckets?:0).put("morningKg",d.morning?.kg?:20).put("eveningBuckets",d.evening?.buckets?:0).put("eveningKg",d.evening?.kg?:20))};return JSONObject().put("version",3).put("records",a).toString(2)}
+ private fun importJson(raw:String){val a=JSONObject(raw).getJSONArray("records");val restored=mutableMapOf<String,BurnDay>();for(i in 0 until a.length()){val o=a.getJSONObject(i);val date=o.getString("date");LocalDate.parse(date);val day=if(o.has("period")){val s=Session(o.optInt("buckets"),o.optInt("bucketKg",20));if(o.optString("period")=="evening")BurnDay(null,s)else BurnDay(s,null)}else{val m=if(o.optInt("morningBuckets")>0)Session(o.optInt("morningBuckets"),o.optInt("morningKg",20))else null;val e=if(o.optInt("eveningBuckets")>0)Session(o.optInt("eveningBuckets"),o.optInt("eveningKg",20))else null;if(m==null&&e==null&&o.optInt("buckets")>0){val s=Session(o.optInt("buckets"),o.optInt("bucketKg",20));if(o.optString("period")=="evening")BurnDay(null,s)else BurnDay(s,null)}else BurnDay(m,e)};if(day.morning!=null||day.evening!=null)restored[date]=day};records.clear();records.putAll(restored)}
 }
