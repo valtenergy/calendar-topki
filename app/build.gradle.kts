@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.valtenergy.calendartopki"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -22,4 +22,8 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+}
+
+dependencies {
+    implementation("androidx.activity:activity-ktx:1.9.3")
 }
