@@ -11,8 +11,8 @@ android {
         applicationId = "com.valtenergy.calendartopki"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "7.3"
+        versionCode = 13
+        versionName = "7.4"
     }
 
     compileOptions {
