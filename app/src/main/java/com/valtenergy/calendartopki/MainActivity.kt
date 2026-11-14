@@ -54,7 +54,7 @@ class MainActivity:ComponentActivity(){
    val off=month.atDay(1).dayOfWeek.value-1;val count=((off+month.lengthOfMonth()+6)/7)*7
    for(w in 0 until count/7){val row=LinearLayout(this);for(col in 0..6){val d=w*7+col-off+1
     val cell=if(d in 1..month.lengthOfMonth()){val date=month.atDay(d);val rec=records[date.toString()];val marked=rec?.let{it.morning!=null||it.evening!=null}==true
-     LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=when{date==selected->grad(orange,red,12);marked->shape(0xFF38291F,12);date==LocalDate.now()->stroke(orange,12);else->shape(panel,12)}
+     LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=when{date==selected->grad(orange,red,12);marked->shape(0xFF38291F.toInt(),12);date==LocalDate.now()->stroke(orange,12);else->shape(panel,12)}
       addView(txt(d.toString(),14,if(date==selected)bg else white,true));addView(txt(if(marked)"🔥" else " ",10,orange));setOnClickListener{selected=date;loadEditor();render()}}
     }else View(this)
     row.addView(cell,LinearLayout.LayoutParams(0,dp(48),1f).apply{setMargins(dp(2),dp(2),dp(2),dp(2))})
