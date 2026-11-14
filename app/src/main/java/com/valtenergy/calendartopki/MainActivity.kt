@@ -64,7 +64,6 @@ class MainActivity:ComponentActivity(){
   page.addView(space(14));header("НОВАЯ ЗАПИСЬ",selected.format(DateTimeFormatter.ofPattern("d MMMM yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()})
   card().also{c->
    val sw=LinearLayout(this);sw.addView(pill("☀ Утро",period=="morning"){period="morning";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginEnd=dp(5)});sw.addView(pill("☾ Вечер",period=="evening"){period="evening";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginStart=dp(5)});c.addView(sw)
-   val s=getSession(selected,period);buckets=s?.buckets?:0;kg=s?.kg?:20
    c.addView(txt("КОЛИЧЕСТВО ВЁДЕР УГЛЯ",10,muted,true).apply{setPadding(0,dp(16),0,dp(8))})
    val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
    row.addView(action("−",24){buckets=(buckets-1).coerceAtLeast(0);render()},LinearLayout.LayoutParams(dp(52),dp(48)))
@@ -85,7 +84,7 @@ class MainActivity:ComponentActivity(){
   page.addView(outlineButton("↓  ВОССТАНОВИТЬ ИЗ КОПИИ"){openBackup.launch(arrayOf("application/json","text/*"))},LinearLayout.LayoutParams(-1,dp(52)).apply{topMargin=dp(10)})
   page.addView(space(16));card().also{it.addView(txt("СОВЕТ",10,orange,true));it.addView(txt("Не удаляй файл резервной копии после восстановления. Храни его отдельно.",13,white).apply{setPadding(0,dp(7),0,0)});page.addView(it)}
  }
- private fun settingsScreen(){header("ПРИЛОЖЕНИЕ","Настройки");card().also{it.addView(txt("ТЕМА ОФОРМЛЕНИЯ",10,orange,true));it.addView(txt("Тёмная с оранжевыми акцентами",15,white,true).apply{setPadding(0,dp(8),0,0)});it.addView(txt("Журнал котла · версия 7.2",12,muted).apply{setPadding(0,dp(14),0,0)});page.addView(it)}}
+ private fun settingsScreen(){header("ПРИЛОЖЕНИЕ","Настройки");card().also{it.addView(txt("ТЕМА ОФОРМЛЕНИЯ",10,orange,true));it.addView(txt("Тёмная с оранжевыми акцентами",15,white,true).apply{setPadding(0,dp(8),0,0)});it.addView(txt("Журнал котла · версия 7.4",12,muted).apply{setPadding(0,dp(14),0,0)});page.addView(it)}}
  private fun navBar()=LinearLayout(this).apply{setBackgroundColor(0xFF151920.toInt());gravity=Gravity.CENTER;listOf(Triple("calendar","▦","Календарь"),Triple("stats","▥","Статистика"),Triple("backup","☁","Копия"),Triple("settings","⚙","Настройки")).forEach{(id,ico,label)->addView(LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=if(screen==id)grad(orange,red,12)else shape(0x00111111,12);setPadding(dp(5),dp(6),dp(5),dp(5));addView(txt(ico,21,if(screen==id)bg else white,true).apply{gravity=Gravity.CENTER});addView(txt(label,10,if(screen==id)bg else muted,true).apply{gravity=Gravity.CENTER});setOnClickListener{screen=id;render()}},LinearLayout.LayoutParams(0,dp(58),1f).apply{setMargins(dp(3),dp(4),dp(3),dp(4))})}}
  private fun loadEditor(){val s=getSession(selected,period);buckets=s?.buckets?:0;kg=s?.kg?:20}
  private fun getSession(d:LocalDate,p:String)=records[d.toString()]?.let{if(p=="morning")it.morning else it.evening}
