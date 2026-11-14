@@ -22,7 +22,7 @@ data class BurnDay(var morning:Session?=null,var evening:Session?=null)
 class MainActivity:ComponentActivity(){
  private val records=mutableMapOf<String,BurnDay>()
  private var selected=LocalDate.now(); private var month=YearMonth.now()
- private var screen="calendar"; private var period="morning"; private var buckets=0; private var kg=20
+ private var screen="record"; private var period="morning"; private var buckets=0; private var kg=20
  private lateinit var page:LinearLayout
  private val bg=0xFF0D1015.toInt(); private val panel=0xFF191E26.toInt(); private val panel2=0xFF242B35.toInt()
  private val orange=0xFFFF861F.toInt(); private val red=0xFFE94D32.toInt(); private val white=0xFFF4F5F7.toInt()
@@ -34,9 +34,97 @@ class MainActivity:ComponentActivity(){
   val outer=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(bg)}
   val scroll=ScrollView(this);page=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(18));setBackgroundColor(bg)}
   scroll.addView(page);outer.addView(scroll,LinearLayout.LayoutParams(-1,0,1f));outer.addView(navBar(),LinearLayout.LayoutParams(-1,dp(68)));setContentView(outer)
-  when(screen){"calendar"->calendarScreen();"stats"->statsScreen();"backup"->backupScreen();else->settingsScreen()}
+  when(screen){"record"->recordScreen();"calendar"->calendarOnlyScreen();"stats"->statsScreen();"backup"->backupScreen();else->settingsScreen()}
  }
  private fun header(k:String,t:String){page.addView(txt(k,10,orange,true));page.addView(txt(t,24,white,true).apply{setPadding(0,dp(4),0,dp(14))})}
+
+ private fun recordScreen(){
+  val top=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+  top.addView(ImageView(this).apply{setImageResource(R.drawable.ic_launcher_full);scaleType=ImageView.ScaleType.FIT_CENTER},LinearLayout.LayoutParams(dp(48),dp(48)))
+  val brand=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(10),0,0,0)}
+  brand.addView(txt("ЖУРНАЛ КОТЛА",11,orange,true));brand.addView(txt("УЧЁТ РАСТОПОК",10,muted,true));top.addView(brand);page.addView(top);page.addView(space(18))
+  header("НОВАЯ ЗАПИСЬ","Когда топили котёл?")
+  val date=card()
+  val dateRow=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+  dateRow.addView(action("‹",26){selected=selected.minusDays(1);month=YearMonth.from(selected);loadEditor();render()},LinearLayout.LayoutParams(dp(48),dp(48)))
+  dateRow.addView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER
+   addView(txt("ДАТА РАСТОПКИ",9,muted,true))
+   addView(txt(selected.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()},14,white,true))
+  },LinearLayout.LayoutParams(0,-2,1f))
+  dateRow.addView(action("›",26){selected=selected.plusDays(1);month=YearMonth.from(selected);loadEditor();render()},LinearLayout.LayoutParams(dp(48),dp(48)))
+  date.addView(dateRow);page.addView(date)
+  val current=records[selected.toString()]
+  val morningDone=current?.morning!=null;val eveningDone=current?.evening!=null
+  val status=card()
+  status.addView(txt("ЗА ЭТОТ ДЕНЬ",10,muted,true))
+  val statusRow=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+  statusRow.addView(txt(if(morningDone)"☀ Утро: ${current!!.morning!!.buckets} вёдер" else "☀ Утро: не отмечено",13,if(morningDone)green else muted,true),LinearLayout.LayoutParams(0,-2,1f))
+  statusRow.addView(txt(if(eveningDone)"☾ Вечер: ${current!!.evening!!.buckets} вёдер" else "☾ Вечер: не отмечено",13,if(eveningDone)green else muted,true),LinearLayout.LayoutParams(0,-2,1f))
+  status.addView(statusRow);page.addView(status)
+  header("ВЫБЕРИ ВРЕМЯ","Когда была растопка?")
+  val times=LinearLayout(this)
+  times.addView(pill("☀  УТРО",period=="morning"){period="morning";loadEditor();render()},LinearLayout.LayoutParams(0,dp(52),1f).apply{marginEnd=dp(5)})
+  times.addView(pill("☾  ВЕЧЕР",period=="evening"){period="evening";loadEditor();render()},LinearLayout.LayoutParams(0,dp(52),1f).apply{marginStart=dp(5)})
+  page.addView(times);page.addView(space(12))
+  val entry=card()
+  entry.addView(txt("КОЛИЧЕСТВО ВЁДЕР",11,muted,true))
+  val count=txt(buckets.toString(),44,white,true).apply{gravity=Gravity.CENTER}
+  val counter=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL;setPadding(0,dp(8),0,dp(8))}
+  counter.addView(action("−",28){buckets=(buckets-1).coerceAtLeast(0);count.text=buckets.toString();total.text="${buckets*kg} кг угля за растопку"},LinearLayout.LayoutParams(dp(64),dp(58)))
+  counter.addView(count,LinearLayout.LayoutParams(0,dp(58),1f))
+  counter.addView(action("+",28){buckets++;count.text=buckets.toString();total.text="${buckets*kg} кг угля за растопку"},LinearLayout.LayoutParams(dp(64),dp(58)))
+  entry.addView(counter)
+  entry.addView(txt("ВЕС ОДНОГО ВЕДРА",11,muted,true).apply{setPadding(0,dp(10),0,dp(8))})
+  val weights=LinearLayout(this)
+  weights.addView(pill("10 кг",kg==10){kg=10;total.text="${buckets*kg} кг угля за растопку";render()},LinearLayout.LayoutParams(0,dp(46),1f).apply{marginEnd=dp(5)})
+  weights.addView(pill("20 кг",kg==20){kg=20;total.text="${buckets*kg} кг угля за растопку";render()},LinearLayout.LayoutParams(0,dp(46),1f).apply{marginStart=dp(5)})
+  entry.addView(weights)
+  val total=txt("${buckets*kg} кг угля за растопку",17,orange,true).apply{setPadding(0,dp(16),0,dp(4))}
+  entry.addView(total)
+  page.addView(entry)
+  page.addView(primary("СОХРАНИТЬ РАСТОПКУ"){saveEditor();toast(if(buckets>0)"Растопка сохранена" else "Запись за это время удалена");render()},LinearLayout.LayoutParams(-1,dp(58)).apply{topMargin=dp(8)})
+  page.addView(space(12))
+  page.addView(outlineButton("ОТКРЫТЬ КАЛЕНДАРЬ"){screen="calendar";render()},LinearLayout.LayoutParams(-1,dp(50)))
+  page.addView(space(12))
+  val info=card();info.addView(txt("ИТОГО ЗА МЕСЯЦ",10,muted,true))
+  val m=monthRecords(YearMonth.from(selected))
+  val row=LinearLayout(this)
+  row.addView(metric(m.size.toString(),"растопок"),LinearLayout.LayoutParams(0,-2,1f))
+  row.addView(metric(m.sumOf{it.buckets}.toString(),"вёдер"),LinearLayout.LayoutParams(0,-2,1f))
+  row.addView(metric(m.sumOf{it.buckets*it.kg}.toString(),"кг угля"),LinearLayout.LayoutParams(0,-2,1f))
+  info.addView(row);page.addView(info)
+ }
+ private fun calendarOnlyScreen(){
+  header("ИСТОРИЯ","Календарь растопок")
+  card().also{c->
+   val r=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+   r.addView(action("‹",28){month=month.minusMonths(1);render()},LinearLayout.LayoutParams(dp(44),dp(42)))
+   r.addView(txt(month.format(DateTimeFormatter.ofPattern("LLLL yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()},17,white,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(0,dp(42),1f))
+   r.addView(action("›",28){month=month.plusMonths(1);render()},LinearLayout.LayoutParams(dp(44),dp(42)));c.addView(r)
+   val wd=LinearLayout(this);listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс").forEach{wd.addView(txt(it,11,muted,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(0,dp(30),1f))};c.addView(wd)
+   val off=month.atDay(1).dayOfWeek.value-1;val count=((off+month.lengthOfMonth()+6)/7)*7
+   for(w in 0 until count/7){val row=LinearLayout(this);for(col in 0..6){val d=w*7+col-off+1
+    val cell=if(d in 1..month.lengthOfMonth()){val date=month.atDay(d);val rec=records[date.toString()];val marked=rec?.let{it.morning!=null||it.evening!=null}==true
+     LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=when{date==selected->grad(orange,red,12);marked->shape(0xFF38291F.toInt(),12);date==LocalDate.now()->stroke(orange,12);else->shape(panel,12)}
+      addView(txt(d.toString(),14,if(date==selected)bg else white,true));addView(txt(if(marked)"🔥" else " ",10,orange))
+      setOnClickListener{selected=date;period="morning";loadEditor();screen="record";render()}
+     }
+    }else View(this)
+    row.addView(cell,LinearLayout.LayoutParams(0,dp(52),1f).apply{setMargins(dp(2),dp(2),dp(2),dp(2))})
+   };c.addView(row)}
+   c.addView(txt("🔥 — есть запись о растопке",11,muted).apply{setPadding(0,dp(10),0,0)})
+   page.addView(c)
+  }
+  page.addView(space(12))
+  page.addView(primary("＋ ДОБАВИТЬ ЗАПИСЬ НА ВЫБРАННУЮ ДАТУ"){period="morning";loadEditor();screen="record";render()},LinearLayout.LayoutParams(-1,dp(54)))
+  page.addView(space(10))
+  val d=records[selected.toString()]
+  if(d!=null){card().also{c->c.addView(txt(selected.format(DateTimeFormatter.ofPattern("d MMMM yyyy",Locale("ru"))),16,white,true))
+   c.addView(txt(if(d.morning!=null)"☀ Утро: ${d.morning!!.buckets} вёдер × ${d.morning!!.kg} кг = ${d.morning!!.buckets*d.morning!!.kg} кг" else "☀ Утро: —",13,muted).apply{setPadding(0,dp(8),0,dp(4))})
+   c.addView(txt(if(d.evening!=null)"☾ Вечер: ${d.evening!!.buckets} вёдер × ${d.evening!!.kg} кг = ${d.evening!!.buckets*d.evening!!.kg} кг" else "☾ Вечер: —",13,muted))
+   page.addView(c)}}
+ }
+
  private fun calendarScreen(){
   val h=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
   h.addView(ImageView(this).apply{setImageResource(R.drawable.ic_launcher_full);scaleType=ImageView.ScaleType.FIT_CENTER},LinearLayout.LayoutParams(dp(54),dp(54)))
@@ -89,8 +177,8 @@ class MainActivity:ComponentActivity(){
   page.addView(outlineButton("↓  ВОССТАНОВИТЬ ИЗ КОПИИ"){openBackup.launch(arrayOf("application/json","text/*"))},LinearLayout.LayoutParams(-1,dp(52)).apply{topMargin=dp(10)})
   page.addView(space(16));card().also{it.addView(txt("СОВЕТ",10,orange,true));it.addView(txt("Не удаляй файл резервной копии после восстановления. Храни его отдельно.",13,white).apply{setPadding(0,dp(7),0,0)});page.addView(it)}
  }
- private fun settingsScreen(){header("ПРИЛОЖЕНИЕ","Настройки");card().also{it.addView(txt("ТЕМА ОФОРМЛЕНИЯ",10,orange,true));it.addView(txt("Тёмная с оранжевыми акцентами",15,white,true).apply{setPadding(0,dp(8),0,0)});it.addView(txt("Журнал котла · версия 7.6",12,muted).apply{setPadding(0,dp(14),0,0)});page.addView(it)}}
- private fun navBar()=LinearLayout(this).apply{setBackgroundColor(0xFF151920.toInt());gravity=Gravity.CENTER;listOf(Triple("calendar","▦","Календарь"),Triple("stats","▥","Статистика"),Triple("backup","☁","Копия"),Triple("settings","⚙","Настройки")).forEach{(id,ico,label)->addView(LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=if(screen==id)grad(orange,red,12)else shape(0x00111111,12);setPadding(dp(5),dp(6),dp(5),dp(5));addView(txt(ico,21,if(screen==id)bg else white,true).apply{gravity=Gravity.CENTER});addView(txt(label,10,if(screen==id)bg else muted,true).apply{gravity=Gravity.CENTER});setOnClickListener{screen=id;render()}},LinearLayout.LayoutParams(0,dp(58),1f).apply{setMargins(dp(3),dp(4),dp(3),dp(4))})}}
+ private fun settingsScreen(){header("ПРИЛОЖЕНИЕ","Настройки");card().also{it.addView(txt("ТЕМА ОФОРМЛЕНИЯ",10,orange,true));it.addView(txt("Тёмная с оранжевыми акцентами",15,white,true).apply{setPadding(0,dp(8),0,0)});it.addView(txt("Журнал котла · версия 8.0",12,muted).apply{setPadding(0,dp(14),0,0)});page.addView(it)}}
+ private fun navBar()=LinearLayout(this).apply{setBackgroundColor(0xFF151920.toInt());gravity=Gravity.CENTER;listOf(Triple("record","✚","Запись"),Triple("calendar","▦","Календарь"),Triple("stats","▥","Статистика"),Triple("backup","☁","Копия")).forEach{(id,ico,label)->addView(LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=if(screen==id)grad(orange,red,12)else shape(0x00111111,12);setPadding(dp(5),dp(6),dp(5),dp(5));addView(txt(ico,21,if(screen==id)bg else white,true).apply{gravity=Gravity.CENTER});addView(txt(label,10,if(screen==id)bg else muted,true).apply{gravity=Gravity.CENTER});setOnClickListener{screen=id;render()}},LinearLayout.LayoutParams(0,dp(58),1f).apply{setMargins(dp(3),dp(4),dp(3),dp(4))})}}
  private fun loadEditor(){val s=getSession(selected,period);buckets=s?.buckets?:0;kg=s?.kg?:20}
  private fun getSession(d:LocalDate,p:String)=records[d.toString()]?.let{if(p=="morning")it.morning else it.evening}
  private fun saveEditor(){val d=records.getOrPut(selected.toString()){BurnDay()};val s=if(buckets<=0)null else Session(buckets,kg);if(period=="morning")d.morning=s else d.evening=s;if(d.morning==null&&d.evening==null)records.remove(selected.toString());persist()}
