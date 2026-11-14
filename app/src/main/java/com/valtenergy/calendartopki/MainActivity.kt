@@ -69,6 +69,7 @@ class MainActivity:ComponentActivity(){
   val entry=card()
   entry.addView(txt("КОЛИЧЕСТВО ВЁДЕР",11,muted,true))
   val count=txt(buckets.toString(),44,white,true).apply{gravity=Gravity.CENTER}
+  val total=txt("${buckets*kg} кг угля за растопку",17,orange,true).apply{setPadding(0,dp(16),0,dp(4))}
   val counter=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL;setPadding(0,dp(8),0,dp(8))}
   counter.addView(action("−",28){buckets=(buckets-1).coerceAtLeast(0);count.text=buckets.toString();total.text="${buckets*kg} кг угля за растопку"},LinearLayout.LayoutParams(dp(64),dp(58)))
   counter.addView(count,LinearLayout.LayoutParams(0,dp(58),1f))
@@ -79,7 +80,6 @@ class MainActivity:ComponentActivity(){
   weights.addView(pill("10 кг",kg==10){kg=10;total.text="${buckets*kg} кг угля за растопку";render()},LinearLayout.LayoutParams(0,dp(46),1f).apply{marginEnd=dp(5)})
   weights.addView(pill("20 кг",kg==20){kg=20;total.text="${buckets*kg} кг угля за растопку";render()},LinearLayout.LayoutParams(0,dp(46),1f).apply{marginStart=dp(5)})
   entry.addView(weights)
-  val total=txt("${buckets*kg} кг угля за растопку",17,orange,true).apply{setPadding(0,dp(16),0,dp(4))}
   entry.addView(total)
   page.addView(entry)
   page.addView(primary("СОХРАНИТЬ РАСТОПКУ"){saveEditor();toast(if(buckets>0)"Растопка сохранена" else "Запись за это время удалена");render()},LinearLayout.LayoutParams(-1,dp(58)).apply{topMargin=dp(8)})
