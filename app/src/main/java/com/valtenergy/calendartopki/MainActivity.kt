@@ -44,6 +44,24 @@ class MainActivity:ComponentActivity(){
   n.addView(txt("Журнал котла",22,white,true));n.addView(txt("Учёт растопок и расхода угля",12,muted));h.addView(n);page.addView(h);page.addView(space(14))
   val today=records[LocalDate.now().toString()]
   card().also{it.addView(txt("СЕГОДНЯ · "+LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM",Locale("ru"))).uppercase(Locale("ru")),10,0xFFFFB46D.toInt(),true));it.addView(txt("Отопление под контролем",21,white,true).apply{setPadding(0,dp(7),0,dp(4))});it.addView(txt(if(today?.let{it.morning!=null||it.evening!=null}==true)"🔥 Сегодня котёл топили" else "Сегодня растопка ещё не отмечена",13,if(today==null)muted else green,true));page.addView(it)}
+  val dateNav=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL;background=shape(panel,14);setPadding(dp(8),dp(5),dp(8),dp(5))}
+  dateNav.addView(action("‹",24){selected=selected.minusDays(1);month=YearMonth.from(selected);loadEditor();render()},LinearLayout.LayoutParams(dp(44),dp(44)))
+  dateNav.addView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;addView(txt("ДАТА РАСТОПКИ",9,muted,true));addView(txt(selected.format(DateTimeFormatter.ofPattern("d MMMM yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()},15,white,true))},LinearLayout.LayoutParams(0,-2,1f))
+  dateNav.addView(action("›",24){selected=selected.plusDays(1);month=YearMonth.from(selected);loadEditor();render()},LinearLayout.LayoutParams(dp(44),dp(44)))
+  page.addView(dateNav);page.addView(space(10))
+  page.addView(space(14));header("НОВАЯ ЗАПИСЬ",selected.format(DateTimeFormatter.ofPattern("d MMMM yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()})
+  card().also{c->
+   val sw=LinearLayout(this);sw.addView(pill("☀ Утро",period=="morning"){period="morning";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginEnd=dp(5)});sw.addView(pill("☾ Вечер",period=="evening"){period="evening";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginStart=dp(5)});c.addView(sw)
+   c.addView(txt("КОЛИЧЕСТВО ВЁДЕР УГЛЯ",10,muted,true).apply{setPadding(0,dp(16),0,dp(8))})
+   val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
+   row.addView(action("−",24){buckets=(buckets-1).coerceAtLeast(0);render()},LinearLayout.LayoutParams(dp(52),dp(48)))
+   row.addView(txt(buckets.toString(),24,white,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(0,dp(48),1f))
+   row.addView(action("+",24){buckets++;render()},LinearLayout.LayoutParams(dp(52),dp(48)));c.addView(row)
+   c.addView(txt("ВЕС ОДНОГО ВЕДРА",10,muted,true).apply{setPadding(0,dp(14),0,dp(8))})
+   val weights=LinearLayout(this);weights.addView(pill("10 кг",kg==10){kg=10;render()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginEnd=dp(5)});weights.addView(pill("20 кг",kg==20){kg=20;render()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(5)});c.addView(weights)
+   c.addView(txt((buckets*kg).toString()+" кг угля за эту растопку",14,orange,true).apply{setPadding(0,dp(13),0,0)})
+  }
+  page.addView(primary("СОХРАНИТЬ ЗАПИСЬ"){saveEditor();toast("Запись сохранена");render()},LinearLayout.LayoutParams(-1,dp(54)).apply{topMargin=dp(10)})
   page.addView(space(16));header("КАЛЕНДАРЬ","История растопок")
   card().also{c->
    val r=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
@@ -61,19 +79,6 @@ class MainActivity:ComponentActivity(){
    };c.addView(row)}
    c.addView(txt("🔥 растопка     Оранжевая рамка — сегодня",10,muted).apply{setPadding(0,dp(8),0,0)});page.addView(c)
   }
-  page.addView(space(14));header("НОВАЯ ЗАПИСЬ",selected.format(DateTimeFormatter.ofPattern("d MMMM yyyy",Locale("ru"))).replaceFirstChar{it.uppercase()})
-  card().also{c->
-   val sw=LinearLayout(this);sw.addView(pill("☀ Утро",period=="morning"){period="morning";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginEnd=dp(5)});sw.addView(pill("☾ Вечер",period=="evening"){period="evening";loadEditor();render()},LinearLayout.LayoutParams(0,dp(48),1f).apply{marginStart=dp(5)});c.addView(sw)
-   c.addView(txt("КОЛИЧЕСТВО ВЁДЕР УГЛЯ",10,muted,true).apply{setPadding(0,dp(16),0,dp(8))})
-   val row=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
-   row.addView(action("−",24){buckets=(buckets-1).coerceAtLeast(0);render()},LinearLayout.LayoutParams(dp(52),dp(48)))
-   row.addView(txt(buckets.toString(),24,white,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(0,dp(48),1f))
-   row.addView(action("+",24){buckets++;render()},LinearLayout.LayoutParams(dp(52),dp(48)));c.addView(row)
-   c.addView(txt("ВЕС ОДНОГО ВЕДРА",10,muted,true).apply{setPadding(0,dp(14),0,dp(8))})
-   val weights=LinearLayout(this);weights.addView(pill("10 кг",kg==10){kg=10;render()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginEnd=dp(5)});weights.addView(pill("20 кг",kg==20){kg=20;render()},LinearLayout.LayoutParams(0,dp(42),1f).apply{marginStart=dp(5)});c.addView(weights)
-   c.addView(txt((buckets*kg).toString()+" кг угля за эту растопку",14,orange,true).apply{setPadding(0,dp(13),0,0)})
-  }
-  page.addView(primary("СОХРАНИТЬ ЗАПИСЬ"){saveEditor();toast("Запись сохранена");render()},LinearLayout.LayoutParams(-1,dp(54)).apply{topMargin=dp(10)})
   page.addView(space(14));val m=monthRecords(month);val st=card();st.addView(txt("ИТОГО ЗА МЕСЯЦ",10,muted,true));val row=LinearLayout(this);row.addView(metric(m.size.toString(),"растопок"),LinearLayout.LayoutParams(0,-2,1f));row.addView(metric(m.sumOf{it.buckets}.toString(),"вёдер"),LinearLayout.LayoutParams(0,-2,1f));row.addView(metric(m.sumOf{it.buckets*it.kg}.toString(),"кг угля"),LinearLayout.LayoutParams(0,-2,1f));st.addView(row);page.addView(st)
  }
  private fun statsScreen(){header("АНАЛИТИКА","Статистика");val all=records.values.flatMap{listOfNotNull(it.morning,it.evening)};val c=card();val r=LinearLayout(this);r.addView(metric(all.size.toString(),"растопок"),LinearLayout.LayoutParams(0,-2,1f));r.addView(metric(all.sumOf{it.buckets}.toString(),"вёдер"),LinearLayout.LayoutParams(0,-2,1f));r.addView(metric(all.sumOf{it.buckets*it.kg}.toString(),"кг угля"),LinearLayout.LayoutParams(0,-2,1f));c.addView(r);page.addView(c);page.addView(space(12));header("РАСХОД","По месяцам")
